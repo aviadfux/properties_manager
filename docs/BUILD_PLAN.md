@@ -1,6 +1,6 @@
 # Build Plan — Property Management System
 
-Source of truth for requirements: [`SPEC.en.md`](SPEC.en.md) (Hebrew translation: [`SPEC.he.md`](SPEC.he.md)), v1.2.
+Source of truth for requirements: [`SPEC.en.md`](SPEC.en.md) (Hebrew translation: [`SPEC.he.md`](SPEC.he.md)), v1.3.
 Section references (§) below point to the spec.
 
 ## 1. Guiding decisions
@@ -35,8 +35,8 @@ One language end to end (TypeScript), few moving parts, everything runs on manag
 ## 3. Architecture outline
 
 ```
-apps/web      Next.js: admin UI, tenant portal, webhooks endpoint
-apps/worker   pg-boss consumers: billing run, reminders, provider outbox, reconciliation
+apps/web      Next.js: admin UI, tenant portal, team inbox, webhooks endpoint (invoicing provider, WhatsApp)
+apps/worker   pg-boss consumers: billing run, reminders, provider outbox, reconciliation, WhatsApp conversations
 packages/db   Drizzle schema, migrations, RLS policies, seed data
 packages/core Pure domain logic (pricing, charge generation, allocation, approvals) — no I/O, fully unit-tested
 packages/integrations  Invoicing provider client (morning first), email, storage
@@ -98,7 +98,7 @@ Opening-data import with dry run and duplicate detection, backup restore drill, 
 5. Employees and roles in production use; separation of duties for receipt verification
 6. Buildings module: ledgers, HOA budgets, allocation rules, building dashboard (before the first building)
 7. Leasing pipeline, lease lifecycle checklists (inspections, utility transfers)
-8. Communication hub (templates, WhatsApp / SMS, consent)
+8. Communication hub (templates, SMS, consent) and the WhatsApp intake bot (§8): service requests, new inquiries, request status, handoff to the team inbox. A good candidate to move earlier, right after the tenant portal or instead of it, since tenants use WhatsApp more readily than a portal
 9. AI assistance (request triage, invoice / proof extraction, reply drafts)
 
 Estimates assume part-time work by the user with Claude writing most of the code; they are for sequencing, not commitments.

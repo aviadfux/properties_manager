@@ -2,7 +2,7 @@
 
 **Property Management & Investments — General Edition**
 
-Version 1.2 | October 21, 2026 | Specification and Phased Rollout
+Version 1.3 | October 25, 2026 | Specification and Phased Rollout
 
 ## 1. Purpose and Scope of the System
 
@@ -69,7 +69,7 @@ Move-in and move-out are recorded with photos, condition notes, meter readings a
 
 ## 3. Screens and Management Dashboard
 
-Main menu: Overview, Clients & Leads, Leasing, Properties & Buildings, Agreements, Collections, Budgets & Expenses, Service Requests, Vendors, Tasks, Calendar, Reports and Settings. Global search by client, address, phone and request number. Every list supports filtering, sorting and export according to permissions.
+Main menu: Overview, Clients & Leads, Leasing, Properties & Buildings, Agreements, Collections, Budgets & Expenses, Service Requests, Inbox, Vendors, Tasks, Calendar, Reports and Settings. Global search by client, address, phone and request number. Every list supports filtering, sorting and export according to permissions.
 
 ### Managing Director Dashboard
 
@@ -183,7 +183,7 @@ Balances and debts per unit; budget vs. actual and commitments; cash flow based 
 
 ### Service Request Lifecycle
 
-A tenant or employee opens a request with property, location, category, description, photos and reported urgency. The employee verifies the urgency, records the risk and assigns a responsible person. Quotes can be requested without ordering work. Engaging a vendor or committing to a payment is blocked until the Managing Director approves.
+A tenant (through the portal or WhatsApp) or an employee opens a request with property, location, category, description, photos and reported urgency. The employee verifies the urgency, records the risk and assigns a responsible person. Quotes can be requested without ordering work. Engaging a vendor or committing to a payment is blocked until the Managing Director approves.
 
 Statuses: new, under review, awaiting quote, awaiting approval, approved, scheduled, in progress, awaiting completion sign-off, closed or cancelled. A rejection returns the request for revision. Closing requires a resolution description, completion date and actual cost, or an explicit statement that there was no cost.
 
@@ -242,6 +242,25 @@ Identity documents and payment details not required by the process must not be u
 
 Messages are sent from templates per channel and language. Each contact has a preferred language and channel and a recorded consent for non-essential messages; opt-outs are honored. All outgoing and incoming messages are kept in the communication history on the client and tenant cards.
 
+### WhatsApp Intake Bot
+
+Customers can reach the company through a WhatsApp bot on a dedicated business number. The bot collects their requirements in a structured conversation and turns them into records in the system; it never replaces a human decision.
+
+| Flow | What the bot collects and creates |
+|---|---|
+| Service request (tenant) | Unit (asked only if the tenant has several), location in the unit, category, description, photos or videos, urgency questions and access availability; creates a service request with status "new" and replies with its number |
+| New inquiry (prospective client) | Name, property type and location, number of units, requested service, current management situation and preferred contact time; creates a lead with source "WhatsApp", an assigned user and a next action |
+| Request status | Status and next step of the sender's open requests, without internal notes or commercial details |
+| Human handoff | At any point the sender can ask for a person; the conversation moves to the team inbox with its full history; outside business hours the bot says when to expect a reply |
+
+Identification: the sender's phone number is matched to a contact. A known tenant is linked to their units; an unknown number is treated as a new inquiry and never receives existing data. Personal or financial information is shared only after verification (e.g., a one-time code), and only within the sender's permissions defined above.
+
+Urgency: safety keywords and answers (flooding, gas, electricity, lock-out, elevator entrapment) trigger an immediate alert to the responsible user and, where configured, the emergency path of Section 7. The bot tells the sender what to do in the meantime and never promises a time or a cost.
+
+Before submitting, the bot shows a summary of what it understood and asks the sender to confirm or correct it. Free text may be interpreted with AI assistance (Section 9), always confirmed by the sender and reviewed by an employee; the bot never approves work, quotes prices or commits the company.
+
+Every conversation, including media, is stored in the contact's communication history and linked to the request or lead it created; media go to private file storage. The first message includes a short privacy notice; the sender's language is detected or chosen (Hebrew and English at launch) and saved as their preferred language; an opt-out keyword stops non-essential messages. Outbound messages outside WhatsApp's customer-service window use templates pre-approved by WhatsApp.
+
 ### Privacy and Data Protection
 
 The system complies with the applicable privacy law (e.g., Israel's Privacy Protection Law and its Data Security Regulations, or GDPR where relevant): a database definition document, retention periods per data type, handling of access, correction and deletion requests, data-processing agreements with vendors and a breach-notification procedure.
@@ -258,7 +277,7 @@ Every record belongs to an organization and is isolated per organization on the 
 
 Integration with the invoicing provider for client matching, document issuance, status lookup and supported corrections — first in a sandbox. The provider's official developer documentation (e.g., morning) exposes APIs for documents, clients, payments and incoming webhooks. Exact capabilities will be verified in the business account. Email is used to send payment requests; the opening-data import runs after a dry run and approval.
 
-Card processing, WhatsApp or SMS messaging, automatic bank reconciliation and e-signature are separate integrations to be priced and decided. They must not be assumed to be included in the invoicing system's price. Before choosing a vendor, its actual capabilities, costs and support for the required issuer identity will be checked.
+Card processing, SMS messaging, automatic bank reconciliation and e-signature are separate integrations to be priced and decided. They must not be assumed to be included in the invoicing system's price. Before choosing a vendor, its actual capabilities, costs and support for the required issuer identity will be checked. WhatsApp is connected through the official WhatsApp Business Platform (Section 8).
 
 ### AI Assistance
 
@@ -298,6 +317,10 @@ A full export of all data and files in open formats is available to the organiza
 14. An owner-approval threshold blocks the work order until the owner's consent is recorded.
 15. A user of one organization cannot access another organization's data, even via a direct server call.
 16. A tenant's access request can be fulfilled with a complete export of their personal data.
+17. A WhatsApp message from a tenant's registered number creates a service request linked to the right unit, with its photos, and the bot replies with the request number.
+18. A message from an unknown number never receives existing data; it creates a lead or asks the sender to identify.
+19. A WhatsApp message describing a safety incident triggers an immediate alert to the responsible user.
+20. The opt-out keyword stops non-essential WhatsApp messages to that contact.
 
 ### Recommended Development Order
 
@@ -313,6 +336,8 @@ A full export of all data and files in open formats is available to the organiza
 Open decisions: identity of the issuing business and the target account; invoicing-provider plan and API permissions; basis for percentage-based management fees; partial-month and vacant-unit policy; source of opening data; expected number of tenant users; development and maintenance budget. The standing-order type will be decided separately: customer-initiated recurring transfer, authorized bank direct debit, or recurring card charge. The Managing Director will verify receipts at launch.
 
 Also to decide: emergency cap amount and categories; the backup approver; default owner-approval thresholds; whether leasing is offered at launch; languages at launch; retention periods; the phase for AI features.
+
+WhatsApp bot: provider (WhatsApp Cloud API directly or a business solution provider), the business phone number, which flows are included at launch or in the first extension, business hours and handoff response targets, and whether AI is used to interpret free text.
 
 A quote will be requested separately for the launch version and for each extension, including running costs, integrations, warranty and handover of code and data. Target extensions include buildings, employees, a full tenant portal, credit cards and standing orders. An owner portal, vendor log-in, rent collection and app-store apps remain future options.
 
