@@ -6,15 +6,10 @@ A management system for property management companies: clients and leads, proper
 
 | Path | Contents |
 |---|---|
-| `Property_Management_CRM_Specification_EN.docx` | Specification, English (source language) |
-| `Property_Management_CRM_Specification_HE.docx` | Specification, Hebrew (translation of the English) |
-| `spec/` | Source for both specification files — edit here, not in Word |
+| `docs/SPEC.en.md` | Specification — English (source language) |
+| `docs/SPEC.he.md` | Specification — Hebrew (translation of the English) |
 | `docs/BUILD_PLAN.md` | Stack, architecture and phased build plan |
 
 ## Updating the specification
 
-Both `.docx` files are generated so the two languages stay in sync; English is the source and Hebrew its translation. Add the change, in both languages, to `CHANGES` in `spec/build_spec.py`, then run:
-
-```bash
-python3 -I spec/build_spec.py
-```
+English is the source. Every change goes into both `SPEC.en.md` and `SPEC.he.md`, in the same place, so the two files keep the same headings, tables and numbering.
