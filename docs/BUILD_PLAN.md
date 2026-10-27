@@ -1,6 +1,6 @@
 # Build Plan — Property Management System
 
-Source of truth for requirements: [`SPEC.en.md`](SPEC.en.md) (Hebrew translation: [`SPEC.he.md`](SPEC.he.md)), v1.3.
+Source of truth for requirements: [`SPEC.en.md`](SPEC.en.md) (Hebrew translation: [`SPEC.he.md`](SPEC.he.md)), v1.4.
 Section references (§) below point to the spec.
 
 ## 1. Guiding decisions
@@ -16,30 +16,34 @@ Section references (§) below point to the spec.
 
 ## 2. Proposed stack
 
-One language end to end (TypeScript), few moving parts, everything runs on managed services.
+Python where the business rules live, TypeScript only for the screens. The user works in Python, so billing, approvals, integrations and jobs — the parts that must be right — are in the language they can read and maintain; Next.js is used for what it does best: a fast, accessible, right-to-left web UI.
 
 | Layer | Choice | Why |
 |---|---|---|
-| App | Next.js (App Router) + React, server actions / route handlers | One codebase for admin UI, tenant portal and API |
-| UI | Tailwind CSS + shadcn/ui, logical CSS properties | Good RTL support; mobile-responsive (§9) |
-| i18n | next-intl, Hebrew + English from day one | Strings in translation files (§9) |
-| Database | PostgreSQL + Drizzle ORM + migrations | Relational, transactions, row-level security |
-| Auth | Better Auth (organizations, roles, TOTP 2FA, invitations) | MFA for internal users, invite-only tenant access (§8, §9) |
-| Jobs | pg-boss (queue inside Postgres) + a separate worker process | Monthly billing runs, reminders, provider sync, retries — no Redis (§9) |
+| Web UI | Next.js (App Router) + React + TypeScript | Public website, admin UI and tenant portal; static export for the website (§2) |
+| UI kit | Tailwind CSS + shadcn/ui, logical CSS properties | Good RTL support; mobile-responsive (§9) |
+| i18n | Translation files per language, Hebrew + English from day one | Strings never hard-coded (§9) |
+| API | Python: FastAPI + Pydantic | All business logic and permissions server-side (§8) |
+| Database | PostgreSQL + SQLAlchemy 2 + Alembic migrations | Relational, transactions, row-level security |
+| Auth | In the API: password + TOTP 2FA, invitations, organization roles; secure HTTP-only session cookies | MFA for internal users, invite-only tenant access (§8, §9) |
+| Jobs | Procrastinate (task queue inside Postgres) + a separate worker process | Monthly billing runs, reminders, provider sync, WhatsApp, retries — no Redis (§9) |
 | Files | S3-compatible storage (e.g., Cloudflare R2) with short-lived signed URLs | Private files, time-limited links (§9) |
 | Email | Transactional email provider (e.g., Postmark / Resend) | Payment requests and reminders (§5) |
-| Tests | Vitest (domain logic) + Playwright (end-to-end) | Acceptance scenarios §10 become automated tests |
-| Hosting | Web + worker on Render / Fly.io / Railway, managed Postgres with daily backups and point-in-time recovery; EU region | Low ops; RPO 24h / RTO 1 business day (§9) |
+| Tests | pytest (domain logic, API) + Playwright (end-to-end) + axe (accessibility) | Acceptance scenarios §10 become automated tests |
+| Hosting | Website: static hosting (Vercel / Cloudflare Pages). App: web + API + worker on Render / Fly.io / Railway, managed Postgres with daily backups and point-in-time recovery; EU region | Low ops; RPO 24h / RTO 1 business day (§9) |
 | Monitoring | Sentry + business alerts from the worker | Technical + business monitoring (§9) |
+
+The API publishes an OpenAPI schema; the web app generates its TypeScript client from it, so the two sides never drift.
 
 ## 3. Architecture outline
 
 ```
-apps/web      Next.js: admin UI, tenant portal, team inbox, webhooks endpoint (invoicing provider, WhatsApp)
-apps/worker   pg-boss consumers: billing run, reminders, provider outbox, reconciliation, WhatsApp conversations
-packages/db   Drizzle schema, migrations, RLS policies, seed data
-packages/core Pure domain logic (pricing, charge generation, allocation, approvals) — no I/O, fully unit-tested
-packages/integrations  Invoicing provider client (morning first), email, storage
+apps/web      Next.js: public website, admin UI, tenant portal, team inbox
+apps/api      FastAPI: REST API, auth, webhooks (invoicing provider, WhatsApp)
+apps/api/core Pure domain logic (pricing, charge generation, allocation, approvals) — no I/O, fully unit-tested
+apps/api/db   SQLAlchemy models, Alembic migrations, RLS policies, seed data
+apps/api/integrations  Invoicing provider client (morning first), WhatsApp, email, storage
+apps/worker   Procrastinate tasks: billing run, reminders, provider outbox, reconciliation, WhatsApp conversations (same Python package as the API)
 ```
 
 Key patterns:
@@ -65,6 +69,10 @@ Key patterns:
 ## 5. Phases
 
 Each phase ends with a demo and the relevant §10 acceptance scenarios passing as automated tests.
+
+### Phase 0a — Public website (≈1 week)
+Next.js static site in `apps/web`, Hebrew (RTL) + English, company details from one settings file, contact by phone, WhatsApp link and a form that opens a pre-filled WhatsApp chat; accessibility statement and privacy policy (§2 "Public Website").
+*Exit*: deployed on a preview URL; §10 #21 passes; real content approved.
 
 ### Phase 0 — Foundations (≈1–2 weeks)
 Repo, CI, environments (local / staging / production), auth with 2FA, organizations and roles, RLS, i18n + RTL shell, audit log, file storage, error monitoring, deployment pipeline.

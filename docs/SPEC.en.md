@@ -2,7 +2,7 @@
 
 **Property Management & Investments — General Edition**
 
-Version 1.3 | October 25, 2026 | Specification and Phased Rollout
+Version 1.4 | October 27, 2026 | Specification and Phased Rollout
 
 ## 1. Purpose and Scope of the System
 
@@ -51,6 +51,14 @@ Converting a lead to a client carries over its contacts and documents and create
 Leasing pipeline, separate from the sales pipeline, for finding tenants for vacant units: vacancy, listing, inquiry, viewing, application and screening, lease signing and move-in. Each vacancy shows its days vacant and asking rent; each applicant has a source, status and next action.
 
 Ending a management agreement starts an offboarding flow: final statement and open balances, handover of documents and keys, revocation of portal access, and retention of records according to the retention policy.
+
+### Public Website
+
+A public website presents the management company to property owners and is the first source of leads. It is bilingual (Hebrew first, right-to-left, and English), mobile-first and fast, and every company-specific detail — name, logo, colors, texts, phone and service area — comes from the organization's settings, not from code. Sections: hero, services (apartments; offices, shops and commercial properties; buildings with an HOA), how it works, why the company, frequently asked questions and contact.
+
+Contact options: phone, a WhatsApp chat link and a short contact form. Until the system is live, the form opens a WhatsApp chat pre-filled with the visitor's details; afterwards it creates a lead with source "Website", and the WhatsApp link leads to the intake bot (Section 8). The site never shows testimonials, figures or features that are not real and available.
+
+The website complies with Israeli Standard 5568 (WCAG 2.0 level AA) and publishes an accessibility statement and a privacy policy. Analytics, if used, are privacy-friendly and cookie-free.
 
 ### Lease Lifecycle
 
@@ -321,6 +329,7 @@ A full export of all data and files in open formats is available to the organiza
 18. A message from an unknown number never receives existing data; it creates a lead or asks the sender to identify.
 19. A WhatsApp message describing a safety incident triggers an immediate alert to the responsible user.
 20. The opt-out keyword stops non-essential WhatsApp messages to that contact.
+21. The public website passes an automated accessibility check (WCAG 2.0 AA) in Hebrew and English, and the contact form reaches the company with the visitor's details.
 
 ### Recommended Development Order
 
@@ -338,6 +347,8 @@ Open decisions: identity of the issuing business and the target account; invoici
 Also to decide: emergency cap amount and categories; the backup approver; default owner-approval thresholds; whether leasing is offered at launch; languages at launch; retention periods; the phase for AI features.
 
 WhatsApp bot: provider (WhatsApp Cloud API directly or a business solution provider), the business phone number, which flows are included at launch or in the first extension, business hours and handoff response targets, and whether AI is used to interpret free text.
+
+Public website: company name and branding, domain, hosting, and whether a form service is used before the system is live.
 
 A quote will be requested separately for the launch version and for each extension, including running costs, integrations, warranty and handover of code and data. Target extensions include buildings, employees, a full tenant portal, credit cards and standing orders. An owner portal, vendor log-in, rent collection and app-store apps remain future options.
 
