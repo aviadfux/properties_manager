@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+/* Same brand tokens as the public website (apps/web/app/globals.css). */
+@theme {
+  --color-brand-50: #eef8f6;
+  --color-brand-100: #d4efe9;
+  --color-brand-200: #a9ddd3;
+  --color-brand-600: #0f766e;
+  --color-brand-700: #115e59;
+  --color-brand-800: #134e4a;
+  --color-brand-900: #0c2f2d;
+  --color-accent-300: #f6c66b;
+  --color-accent-400: #f0ad3c;
+  --color-ink: #0f1f1e;
+  --color-muted: #4b5b5a;
+
+  --font-sans: "Heebo Variable", ui-sans-serif, system-ui, sans-serif;
+}
+
+body {
+  background: #f6f8f8;
+  color: var(--color-ink);
+}
+
+/* In the base layer so utilities such as focus:outline-none can still override it. */
+@layer base {
+  :focus-visible {
+    outline: 3px solid var(--color-accent-400);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}

@@ -2,7 +2,7 @@
 
 **Property Management & Investments — General Edition**
 
-Version 1.4 | October 27, 2026 | Specification and Phased Rollout
+Version 1.5 | October 28, 2026 | Specification and Phased Rollout
 
 ## 1. Purpose and Scope of the System
 
@@ -69,8 +69,8 @@ Move-in and move-out are recorded with photos, condition notes, meter readings a
 | Term | Definition |
 |---|---|
 | Organization | A management company using the system; every record belongs to exactly one organization |
-| Client | The party that signs a management agreement with the company |
-| Owner | The registered owner of a unit; may or may not be the client |
+| Customer (client) | The property owner who signs a management agreement with the company; co-owners are recorded with their shares |
+| Property | A managed unit (apartment, office, shop or other commercial space), owned by a customer and optionally leased to tenants |
 | Tenant / occupant | The person or business occupying a unit under a lease |
 | Payer | The party actually billed for a specific charge; may differ from the liable party |
 | Managing Director | The organization's principal administrator and expense approver |
@@ -80,6 +80,8 @@ Move-in and move-out are recorded with photos, condition notes, meter readings a
 Main menu: Overview, Clients & Leads, Leasing, Properties & Buildings, Agreements, Collections, Budgets & Expenses, Service Requests, Inbox, Vendors, Tasks, Calendar, Reports and Settings. Global search by client, address, phone and request number. Every list supports filtering, sorting and export according to permissions.
 
 ### Managing Director Dashboard
+
+The dashboard opens with a "Needs attention" strip: the most urgent items that require a decision, sorted by urgency — safety issues first, then expenses awaiting approval, payments awaiting verification and approaching deadlines — each with one action button. "See all" opens the full To-do page, which also has its own menu item with a count. Below the strip are the key figures and panels:
 
 | Metric | Meaning and click-through action |
 |---|---|
@@ -95,6 +97,12 @@ Main menu: Overview, Clients & Leads, Leasing, Properties & Buildings, Agreement
 ### Display Rules
 
 The top of the screen shows period, assigned user, property type and building filters. Every amount shows its calculation basis and last-update time. A payment request is never shown as a receipt. Building funds are never counted as the management company's revenue. Provisional data and unverified payments are flagged and not counted as completed collections.
+
+### Customers, Properties, Tenants and Issues
+
+The admin is organized around four separate entities: the **customer** (the property owner who contracts with the company), the **property**, the **tenant** and the **issue**. A property belongs to a customer through ownership periods; a tenant is linked to a property through a lease, and through it to the customer — a customer's tenants are derived, never stored twice. Every issue is linked to its property, to the customer who owned it when the issue was opened, to the person who reported it and to the responsible employee.
+
+The manager can move between views of the same data: the customers list leads to a customer card with tabs for properties, tenants, open and closed issues, charges, documents and activity; the issues list, filtered by status, urgency, customer or property, leads to an issue card that links back to its customer and property. Properties and tenants have their own lists and cards, linked the same way.
 
 ### Property Card and Building Card
 

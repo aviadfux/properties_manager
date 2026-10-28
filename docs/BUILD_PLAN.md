@@ -1,6 +1,6 @@
 # Build Plan — Property Management System
 
-Source of truth for requirements: [`SPEC.en.md`](SPEC.en.md) (Hebrew translation: [`SPEC.he.md`](SPEC.he.md)), v1.4.
+Source of truth for requirements: [`SPEC.en.md`](SPEC.en.md) (Hebrew translation: [`SPEC.he.md`](SPEC.he.md)), v1.5. Entities: [`DATA_MODEL.md`](DATA_MODEL.md).
 Section references (§) below point to the spec.
 
 ## 1. Guiding decisions
@@ -20,7 +20,8 @@ Python where the business rules live, TypeScript only for the screens. The user 
 
 | Layer | Choice | Why |
 |---|---|---|
-| Web UI | Next.js (App Router) + React + TypeScript | Public website, admin UI and tenant portal; static export for the website (§2) |
+| Public website | Next.js (App Router) + React + TypeScript, static export | SEO-friendly static pages (§2) |
+| Admin app | React + Vite + TypeScript single-page app, React Router, TanStack Query | Talks only to the Python API; no Node server; hosted as static files (§3) |
 | UI kit | Tailwind CSS + shadcn/ui, logical CSS properties | Good RTL support; mobile-responsive (§9) |
 | i18n | Translation files per language, Hebrew + English from day one | Strings never hard-coded (§9) |
 | API | Python: FastAPI + Pydantic | All business logic and permissions server-side (§8) |
@@ -38,7 +39,8 @@ The API publishes an OpenAPI schema; the web app generates its TypeScript client
 ## 3. Architecture outline
 
 ```
-apps/web      Next.js: public website, admin UI, tenant portal, team inbox
+apps/web      Next.js: public website (later also the tenant portal)
+apps/admin    React + Vite: manager / employee app — dashboard, to-do, customers, properties, tenants, issues, team inbox
 apps/api      FastAPI: REST API, auth, webhooks (invoicing provider, WhatsApp)
 apps/api/core Pure domain logic (pricing, charge generation, allocation, approvals) — no I/O, fully unit-tested
 apps/api/db   SQLAlchemy models, Alembic migrations, RLS policies, seed data
@@ -74,12 +76,16 @@ Each phase ends with a demo and the relevant §10 acceptance scenarios passing a
 Next.js static site in `apps/web`, Hebrew (RTL) + English, company details from one settings file, contact by phone, WhatsApp link and a form that opens a pre-filled WhatsApp chat; accessibility statement and privacy policy (§2 "Public Website").
 *Exit*: deployed on a preview URL; §10 #21 passes; real content approved.
 
+### Phase 0b — Admin screens with sample data (≈1 week)
+`apps/admin`: app shell (sidebar, search, language switch), dashboard with the "Needs attention" strip, To-do page, customers / properties / tenants / issues lists and cards (spec §3). Data comes from a sample-data module behind the same functions the real API client will implement, typed from `docs/DATA_MODEL.md`.
+*Exit*: the user clicks through all views and approves the screens and the data model.
+
 ### Phase 0 — Foundations (≈1–2 weeks)
 Repo, CI, environments (local / staging / production), auth with 2FA, organizations and roles, RLS, i18n + RTL shell, audit log, file storage, error monitoring, deployment pipeline.
 *Exit*: a user logs in with 2FA in Hebrew or English; the cross-organization isolation test (§10 #15) passes.
 
 ### Phase 1 — Operational core (≈2–3 weeks)
-Clients and contacts, leads pipeline with conversion, units and owners/occupants over time, management agreements, leases (with options, guarantees), vendors, documents, tasks, global search, client and property cards, glossary-aligned naming.
+Customers, properties, ownerships and tenants over time, issues (lifecycle, assignment, history — without quotes and approvals), leads pipeline with conversion, management agreements, leases (with options, guarantees), vendors, documents, tasks, global search, client and property cards, glossary-aligned naming.
 *Exit*: the 10 real properties can be entered by hand.
 
 ### Phase 2 — Billing engine (≈2–3 weeks)
@@ -91,7 +97,7 @@ Sandbox account, client matching, "Verify receipt and issue document", outbox + 
 *Exit*: §10 #3, #4 pass against the sandbox.
 
 ### Phase 4 — Maintenance and approvals (≈2 weeks)
-Service requests lifecycle, quotes, approval card, re-approval on change, vendor document expiry blocking, owner-consent thresholds, emergency path and backup approver (configured but dormant while there is one user).
+Quotes, approval card, re-approval on change, vendor document expiry blocking, owner-consent thresholds, emergency path and backup approver (configured but dormant while there is one user).
 *Exit*: §10 #5, #11, #12, #14 pass.
 
 ### Phase 5 — Import, hardening and pilot (≈1–2 weeks)

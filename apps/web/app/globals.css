@@ -33,8 +33,11 @@ body {
   color: var(--color-ink);
 }
 
-:focus-visible {
-  outline: 3px solid var(--color-accent-400);
-  outline-offset: 2px;
-  border-radius: 4px;
+/* In the base layer so utilities such as focus:outline-none can still override it. */
+@layer base {
+  :focus-visible {
+    outline: 3px solid var(--color-accent-400);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
 }
