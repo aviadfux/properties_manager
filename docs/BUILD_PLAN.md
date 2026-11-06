@@ -1,6 +1,6 @@
 # Build Plan — Property Management System
 
-Source of truth for requirements: [`SPEC.en.md`](SPEC.en.md) (Hebrew translation: [`SPEC.he.md`](SPEC.he.md)), v1.5. Entities: [`DATA_MODEL.md`](DATA_MODEL.md).
+Source of truth for requirements: [`SPEC.en.md`](SPEC.en.md) (Hebrew translation: [`SPEC.he.md`](SPEC.he.md)), v1.6. Entities: [`DATA_MODEL.md`](DATA_MODEL.md).
 Section references (§) below point to the spec.
 
 ## 1. Guiding decisions
@@ -78,6 +78,7 @@ Next.js static site in `apps/web`, Hebrew (RTL) + English, company details from 
 
 ### Phase 0b — Admin screens with sample data (≈1 week)
 `apps/admin`: app shell (sidebar, search, language switch), dashboard with the "Needs attention" strip, To-do page, customers / properties / tenants / issues lists and cards (spec §3). Data comes from a sample-data module behind the same functions the real API client will implement, typed from `docs/DATA_MODEL.md`.
+Added after the first review: professionals (trades, service regions, where they work now, optional professional per issue with ranked suggestions), history on property and customer cards, nested properties (complex › building › units), form and message templates with print / PDF, and payment requests with a reminder schedule (WhatsApp as a pre-filled chat, no integration; sample data, email sending in Phase 2).
 *Exit*: the user clicks through all views and approves the screens and the data model.
 
 ### Phase 0 — Foundations (≈1–2 weeks)
@@ -85,11 +86,11 @@ Repo, CI, environments (local / staging / production), auth with 2FA, organizati
 *Exit*: a user logs in with 2FA in Hebrew or English; the cross-organization isolation test (§10 #15) passes.
 
 ### Phase 1 — Operational core (≈2–3 weeks)
-Customers, properties, ownerships and tenants over time, issues (lifecycle, assignment, history — without quotes and approvals), leads pipeline with conversion, management agreements, leases (with options, guarantees), vendors, documents, tasks, global search, client and property cards, glossary-aligned naming.
+Customers, properties (nested, with inherited ownership), ownerships and tenants over time, issues (lifecycle, assignment, professional, history — without quotes and approvals), professionals, property and customer history, form templates and document generation, leads pipeline with conversion, management agreements, leases (with options, guarantees), vendors, documents, tasks, global search, client and property cards, glossary-aligned naming.
 *Exit*: the 10 real properties can be entered by hand.
 
 ### Phase 2 — Billing engine (≈2–3 weeks)
-Billing plans and versions (fixed, percentage with explicit basis, add-on), partial-month and vacancy rules, monthly preview, idempotent charge generation, payment requests by email, manual payment entry with proof, verification, allocation, partial payments and credit balances, reminders, collections dashboard.
+Billing plans and versions (fixed, percentage with explicit basis, add-on), partial-month and vacancy rules, monthly preview, idempotent charge generation, payment requests and reminders on a schedule (daily worker job, message log): email sent automatically, WhatsApp prepared for one-click sending from a pre-filled chat (no WhatsApp integration), manual payment entry with proof, verification, allocation, partial payments and credit balances, reminders, collections dashboard.
 *Exit*: §10 scenarios #1, #2, #7 pass; one month is billed in staging.
 
 ### Phase 3 — Invoicing-provider integration (≈1–2 weeks)

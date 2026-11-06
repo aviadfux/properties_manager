@@ -30,11 +30,26 @@ npm run build   # static site in apps/web/out/
 
 ## Manager app (`apps/admin`)
 
-Dashboard, to-do list, customers, properties, tenants and issues. Until the Python API exists, data comes from `src/data/sample.ts` through `src/data/api.ts` — the only module that will change when the backend is connected.
+Dashboard, to-do list, customers, properties (nested: complex › building › units), tenants, issues, professionals, payment requests with reminders, and form templates. Until the Python API exists, data comes from `src/data/sample.ts` through `src/data/api.ts` — the only module that will change when the backend is connected.
 
 ```bash
 cd apps/admin
 npm install
 npm run dev     # http://localhost:5174 — add ?lang=en for English
 npm run build   # type-check + static build in apps/admin/dist/
+npm test        # all tests once (Vitest)
+npm run test:watch  # re-runs the affected tests on every save
 ```
+
+### Tests
+
+Run `npm test` before every commit; CI (`.github/workflows/ci.yml`) runs typecheck, tests and build on every push and pull request. The clock is frozen at 2026-11-05 in tests (`src/test/setup.ts`), so results that depend on "today" are repeatable.
+
+| File | Covers |
+|---|---|
+| `src/data/sample.test.ts` | Sample data obeys the database rules: valid references, no hierarchy cycles, ownership shares sum to 100 |
+| `src/data/templates.test.ts` | Template placeholders, line markers, field labels in both languages, no typos in sample templates |
+| `src/data/api.test.ts` | Business rules: inherited ownership, occupancy, history, professional coverage and suggestions, form values, the reminder job |
+| `src/app.test.tsx` | Every page renders (English and Hebrew), and the main actions work: assign a professional, generate a form, send by WhatsApp, search |
+
+`api.test.ts` describes the behaviour the Python API must reproduce; when the backend arrives, the same cases become its pytest suite.

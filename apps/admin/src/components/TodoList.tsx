@@ -9,6 +9,7 @@ const ICON: Record<TodoItem["kind"], { name: IconName; tone: string }> = {
   approval: { name: "clock", tone: "bg-amber-100 text-amber-900" },
   verify_payment: { name: "coin", tone: "bg-sky-100 text-sky-800" },
   lease_ending: { name: "file", tone: "bg-slate-100 text-slate-700" },
+  send_whatsapp: { name: "whatsapp", tone: "bg-emerald-100 text-emerald-800" },
 };
 
 /** The "Needs attention" list: shared by the dashboard strip (limit) and the full To-do page. */
@@ -50,6 +51,14 @@ export function TodoList({ items, limit }: { items: TodoItem[]; limit?: number }
           badge: null,
           to: `/properties/${item.lease.property.id}`,
           action: t.todo.actions.view,
+        };
+      case "send_whatsapp":
+        return {
+          title: `${item.customer.name} · #${item.requestNumber}`,
+          sub: item.message.body,
+          badge: null,
+          to: "/payments",
+          action: t.todo.actions.send,
         };
     }
   }

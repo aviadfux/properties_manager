@@ -3,7 +3,7 @@ import { en } from "./en";
 import { he, type Dictionary } from "./he";
 
 export type Locale = "he" | "en";
-const dictionaries: Record<Locale, Dictionary> = { he, en };
+export const dictionaries: Record<Locale, Dictionary> = { he, en };
 const STORAGE_KEY = "admin.locale";
 
 function initialLocale(): Locale {
@@ -22,7 +22,7 @@ function initialLocale(): Locale {
 type Ctx = { locale: Locale; t: Dictionary; setLocale: (l: Locale) => void; fmt: ReturnType<typeof formatters> };
 const I18nContext = createContext<Ctx | null>(null);
 
-function formatters(locale: Locale) {
+export function formatters(locale: Locale) {
   const tag = locale === "he" ? "he-IL" : "en-IL";
   const money = new Intl.NumberFormat(tag, { style: "currency", currency: "ILS", maximumFractionDigits: 0 });
   const dateF = new Intl.DateTimeFormat(tag, { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jerusalem" });

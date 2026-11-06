@@ -1,11 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
 import { useParams, useSearchParams } from "react-router";
 import { IssueTable } from "@/components/IssueTable";
 import { Badge, Card, EntityLink, Fields, Loaded, PageHeader, StatusBadge, UrgencyBadge } from "@/components/ui";
-import { getIssue, listIssues, type IssueFilter } from "@/data/api";
+import { getIssue, listIssues, professionalOptions, propertyLabel, setIssueProfessional, type IssueFilter, type IssueRow } from "@/data/api";
 import { ISSUE_STATUSES, type IssueStatus, type Urgency } from "@/domain/types";
 import { useI18n } from "@/i18n";
+import { Rating, select as selectClass, Trades } from "./Professionals";
 
 const URGENCIES: Urgency[] = ["emergency", "high", "normal", "low"];
 
@@ -106,6 +107,102 @@ function Progress({ status }: { status: IssueStatus }) {
   );
 }
 
+/** The professional doing the work: shows the current one and lets the manager pick, best matches first. */
+function ProfessionalCard({ issue }: { issue: IssueRow }) {
+  const { t, fmt } = useI18n();
+  const client = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [choice, setChoice] = useState(issue.professionalId ?? "");
+  const options = useQuery({ queryKey: ["professional-options", issue.id], queryFn: () => professionalOptions(issue.id), enabled: editing });
+  const save = useMutation({
+    mutationFn: (id: string | undefined) => setIssueProfessional(issue.id, id),
+    onSuccess: () => {
+      setEditing(false);
+      return client.invalidateQueries();
+    },
+  });
+  const pro = issue.professional;
+  const open = issue.status !== "closed" && issue.status !== "cancelled";
+  const matches = options.data?.filter((o) => o.matchesTrade && o.matchesArea) ?? [];
+  const others = options.data?.filter((o) => !(o.matchesTrade && o.matchesArea)) ?? [];
+  const note = (o: (typeof others)[number]) =>
+    [o.matchesTrade && t.issues.matchesTrade, o.matchesArea && t.issues.matchesArea].filter(Boolean).join(", ") || t.issues.noMatch;
+
+  return (
+    <Card
+      title={t.issues.professional}
+      action={
+        open &&
+        !editing && (
+          <button type="button" onClick={() => setEditing(true)} className="text-sm font-semibold text-brand-700 hover:underline">
+            {pro ? t.forms.edit : t.issues.chooseProfessional}
+          </button>
+        )
+      }
+    >
+      {pro ? (
+        <div className="space-y-1 text-sm">
+          <p>
+            <EntityLink to={`/professionals/${pro.id}`}>{pro.name}</EntityLink>
+            <span className="ms-2">
+              <Rating value={pro.rating} />
+            </span>
+          </p>
+          <p dir="ltr" className="text-start text-muted">
+            {fmt.phone(pro.phone)}
+          </p>
+          <Trades trades={pro.trades} />
+        </div>
+      ) : (
+        <p className="text-sm text-muted">{t.issues.noProfessional}</p>
+      )}
+      {editing && (
+        <form
+          className="mt-4 space-y-3 border-t border-slate-100 pt-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save.mutate(choice || undefined);
+          }}
+        >
+          <label htmlFor="pro-choice" className="block text-xs font-semibold text-muted">
+            {t.issues.chooseProfessional}
+          </label>
+          <select id="pro-choice" className={`${selectClass} w-full`} value={choice} onChange={(e) => setChoice(e.target.value)}>
+            <option value="">{t.issues.noProfessional}</option>
+            {matches.length > 0 && (
+              <optgroup label={t.issues.suggested}>
+                {matches.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {`${o.name}${o.rating ? ` · ${"★".repeat(o.rating)}` : ""}${o.nearbyNow ? ` · ${t.issues.nearbyNow(o.nearbyNow)}` : ""} · ${t.professionals.openJobs}: ${o.openJobs}`}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            {others.length > 0 && (
+              <optgroup label={t.issues.others}>
+                {others.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {`${o.name} (${note(o)})`}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+          {options.isSuccess && !matches.length && <p className="text-xs text-amber-900">{t.issues.noMatch}</p>}
+          <div className="flex gap-2">
+            <button type="submit" disabled={save.isPending} className="rounded-full bg-brand-700 px-4 py-1.5 text-sm font-semibold text-white hover:bg-brand-800">
+              {t.forms.save}
+            </button>
+            <button type="button" onClick={() => setEditing(false)} className="rounded-full px-4 py-1.5 text-sm font-semibold text-brand-700 hover:bg-brand-50">
+              {t.nav.close}
+            </button>
+          </div>
+        </form>
+      )}
+    </Card>
+  );
+}
+
 export function IssueDetail() {
   const { id = "" } = useParams();
   const { t, fmt } = useI18n();
@@ -113,7 +210,7 @@ export function IssueDetail() {
 
   return (
     <Loaded query={query}>
-      {({ issue: i, events }) => (
+      {({ issue: i, partOf, events }) => (
         <>
           <PageHeader
             title={`#${i.number} ${i.title}`}
@@ -132,7 +229,15 @@ export function IssueDetail() {
             <Card className="lg:col-span-2">
               <Fields
                 items={[
-                  [t.issues.property, <EntityLink to={`/properties/${i.property.id}`}>{`${i.property.address}, ${i.property.city}`}</EntityLink>],
+                  [
+                    t.issues.property,
+                    <>
+                      <EntityLink to={`/properties/${i.property.id}`}>{`${propertyLabel(i.property)}, ${i.property.city}`}</EntityLink>
+                      {partOf.length > 0 && (
+                        <span className="block text-xs text-muted">{`${t.properties.partOf}${partOf.map(propertyLabel).join(" › ")}`}</span>
+                      )}
+                    </>,
+                  ],
                   [t.issues.customer, <EntityLink to={`/customers/${i.customer.id}`}>{i.customer.name}</EntityLink>],
                   [
                     t.issues.reporter,
@@ -156,6 +261,8 @@ export function IssueDetail() {
                 ]}
               />
             </Card>
+            <div className="space-y-6">
+            <ProfessionalCard key={i.professionalId ?? "none"} issue={i} />
             <Card title={t.issues.history}>
               {events.length ? (
                 <ol className="space-y-4 border-s-2 border-brand-100 ps-4">
@@ -172,6 +279,9 @@ export function IssueDetail() {
                       {e.kind === "status" && e.fromStatus && e.toStatus && (
                         <p className="text-sm font-semibold">{t.issues.statusChange(t.issueStatus[e.fromStatus], t.issueStatus[e.toStatus])}</p>
                       )}
+                      {e.kind === "professional" && (
+                        <p className="text-sm font-semibold">{e.professionalName ? t.issues.professionalSet(e.professionalName) : t.issues.professionalCleared}</p>
+                      )}
                       {e.body && <p className="text-sm">{e.body}</p>}
                     </li>
                   ))}
@@ -180,6 +290,7 @@ export function IssueDetail() {
                 <p className="text-sm text-muted">{t.common.noItems}</p>
               )}
             </Card>
+            </div>
           </div>
         </>
       )}

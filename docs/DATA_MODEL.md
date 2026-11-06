@@ -29,6 +29,7 @@ Common fields on every entity: `id`, `organization_id`, `created_at`, `updated_a
       └────────<│    Issue     │>───────┘                   └──────────┘
                 │ reporter ────┼──> Customer | Tenant | User
                 │ assignee ────┼──> User
+                │ professional ┼──> Professional
                 └──────┬───────┘
                        │
                 ┌──────┴───────┐
@@ -36,7 +37,7 @@ Common fields on every entity: `id`, `organization_id`, `created_at`, `updated_a
                 └──────────────┘
 ```
 
-`A ──< B` means one A has many B.
+`A ──< B` means one A has many B. Property also has `parent_id → Property` (a unit in a building, a building in a complex). Customer ──< PaymentRequest ──< OutgoingMessage; FormTemplate is used by ReminderRule and for generated documents.
 
 ## Entities
 
@@ -60,22 +61,24 @@ The property owner who contracts with the company for management (spec glossary:
 Derived: properties (current ownerships), tenants (active leases on those properties), open issues.
 
 ### Property
-A managed unit: apartment, office, shop or other commercial space. Can exist without a managed building.
+Anything the company manages: a complex, a building, an apartment, office, shop, parking space or storage room. Properties nest: a unit can be part of a building, a building part of a complex, a parking space part of a building. A unit can also exist without a managed building.
 
 | Field | Type | Notes |
 |---|---|---|
 | `number` | int | Human number per organization |
-| `kind` | enum `apartment` \| `office` \| `shop` \| `commercial` \| `other` | |
+| `kind` | enum `complex` \| `building` \| `apartment` \| `office` \| `shop` \| `commercial` \| `parking` \| `storage` \| `other` | `complex` and `building` usually contain others, but any property may |
+| `parent_id` | FK Property? | The property this one is part of. No cycles (checked on save) |
 | `address` | str | Street and number |
 | `city` | str | |
 | `unit` | str? | Apartment / unit number |
 | `floor` | int? | |
 | `area_sqm` | decimal? | |
 | `rooms` | decimal? | |
-| `building_id` | FK? | Later phase (Buildings module) |
 | `notes` | text? | |
 
-Derived: current customer (ownership), current tenants (active leases), occupancy (`occupied` if an active lease exists, else `vacant`).
+Derived: current customer (ownership), current tenants (active leases), parts (children, recursively), occupancy. A property without parts is `occupied` if it has an active lease, else `vacant`; a property with parts is `occupied` / `partial` / `vacant` from its innermost units. Dashboard occupancy counts units without parts only. A property's issues, leases and history include those of its parts.
+
+Address and city are stored on every property, also on units (they are prefilled from the parent when a unit is created, and may differ — a building with two entrances).
 
 ### Ownership
 Links a customer to a property over time. Supports co-owners.
@@ -88,7 +91,7 @@ Links a customer to a property over time. Supports co-owners.
 | `start_date` | date | |
 | `end_date` | date? | Open = current |
 
-Rule: for a property, current shares sum to 100. The **managing customer** of a property is the owner on its active management agreement; until agreements exist (Phase 1), it is the current owner with the largest share.
+Rule: for a property, current shares sum to 100. A property with no ownership rows of its own **inherits** the owners of its nearest ancestor that has them (a building owned as a whole: its units have no rows). A unit sold separately gets its own rows, which take precedence. The **managing customer** of a property is the owner on its active management agreement; until agreements exist (Phase 1), it is the current owner with the largest share.
 
 ### Tenant
 A person or business occupying a property under a lease. Separate from Customer: a tenant is not a party to the management agreement.
@@ -130,6 +133,7 @@ A service request about a property (spec §7).
 | `reporter_type` | enum `customer` \| `tenant` \| `user` | |
 | `reporter_id` | UUID | Points to the reporter entity |
 | `assignee_id` | FK User? | Employee responsible |
+| `professional_id` | FK Professional? | Who does the work. Must be active; suggested by trade = category and service area = property city, but any active professional may be chosen |
 | `title` | str | Short summary |
 | `description` | text | |
 | `category` | enum `plumbing` \| `electrical` \| `hvac` \| `structural` \| `appliances` \| `pests` \| `locks` \| `elevator` \| `cleaning` \| `other` | |
@@ -149,12 +153,71 @@ Append-only history of an issue: status changes, notes, attachments, assignment 
 | Field | Type | Notes |
 |---|---|---|
 | `issue_id` | FK Issue | |
-| `kind` | enum `status` \| `note` \| `attachment` \| `assignment` | |
+| `kind` | enum `status` \| `note` \| `attachment` \| `assignment` \| `professional` | |
+| `professional_id` | FK Professional? | For `professional` events; empty = removed |
 | `actor_type` / `actor_id` | | Who did it |
 | `from_status` / `to_status` | enum? | For `status` events |
 | `body` | text? | Note text |
 | `internal` | bool | Internal notes are never shown to tenants (spec §7) |
 | `at` | timestamp | |
+
+### Professional
+A plumber, electrician, contractor or other service provider who does work on issues (the spec's "vendor"). Never logs in.
+
+| Field | Type | Notes |
+|---|---|---|
+| `number` | int | |
+| `kind` | enum `individual` \| `company` | |
+| `name` | str | Business or person name |
+| `contact_name` | str? | |
+| `tax_id` | str? | |
+| `phone` | str | E.164 |
+| `email` | str? | |
+| `trades` | enum[] | Issue categories they handle |
+| `service_area_ids` | FK ServiceArea[] | Regions they serve |
+| `extra_cities` | str[] | Single cities served outside those regions |
+| `rating` | int 1–5? | Internal |
+| `active` | bool | Inactive professionals cannot be assigned |
+| `notes` | text? | |
+
+Derived: **coverage** (the cities of their regions plus the extra cities), **working now** (cities of their open jobs, busiest first), open jobs, job history and total cost (issues with this `professional_id`).
+
+Suggestions for an issue rank active professionals by: right trade (category), coverage includes the property's city, already working in that city now (open jobs there), then rating. Phase 4 adds documents with expiry (insurance, licences), which block assignment when expired (spec §7).
+
+### ServiceArea
+A region the organization works in, made of cities (e.g. Gush Dan = Tel Aviv, Ramat Gan, Givatayim, …). Editing a region's cities changes the coverage of every professional who serves it.
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | str | |
+| `cities` | str[] | Becomes FK City once cities are a table (with the property's city) |
+
+### History (derived, not stored)
+The history on a property or customer card is a view over existing rows, newest first: ownership periods, leases (start–end, rent) and issues (with professional, resolution and actual cost). A property's history includes its parts. A customer's history covers their ownership periods (also past ones), the leases on those properties that overlap the ownership period, and issues whose `customer_id` snapshot is the customer. Summary: number of leases, tenants, issues, total repair cost, professionals used.
+
+### FormTemplate
+A template for a printable document (handover protocol, work order…) or for a message (payment request, reminder).
+
+| Field | Type | Notes |
+|---|---|---|
+| `name` | str | |
+| `context` | enum `lease` \| `property` \| `customer` \| `tenant` \| `issue` \| `payment_request` | The record a form is generated from; decides the available fields |
+| `kind` | enum `document` \| `message` | |
+| `body` | map language → text | Text with `{{field}}` placeholders; at least one language |
+
+Template rules (`apps/admin/src/data/templates.ts`, ported to `apps/api/core`): placeholders per context are a fixed list; a known field without a value renders as "—" and is reported; an unknown field is left as written and reported. Line markers for documents: `#` title, `##` section, `-` bullet, `[ ]` checkbox, `---` divider, underscores = blank to fill by hand. Generated documents are rendered in the template's language and direction, and printed or saved as PDF. Later: save the generated PDF to the record's documents.
+
+### PaymentRequest, ReminderRule, OutgoingMessage (Phase 2, sample-only now)
+
+**PaymentRequest**: `number`, `customer_id`, `property_id?`, `description`, `amount_minor`, `paid_minor`, `currency`, `issue_date`, `due_date`, `status` (`scheduled` → `sent` → `partially_paid` → `paid`; `paused` with `paused_reason`; `cancelled`). Overdue = past `due_date` with a balance (derived).
+
+**ReminderRule** (per organization): `anchor` (`issue_date` \| `due_date`), `offset_days` (−3 = three days before), `channel` (`preferred` \| `whatsapp` \| `email`), `template_id`, `active`. `issue_date + 0` is the payment request itself. Defaults follow spec §5: the request, −3, 0, +7, +14.
+
+**OutgoingMessage** (append-only): `payment_request_id`, `customer_id`, `rule_id?` (empty = sent by hand), `channel`, `to`, `body` (the text as sent), `status` (`ready` \| `queued` \| `sent` \| `delivered` \| `failed`), `at`.
+
+**WhatsApp is not integrated.** A WhatsApp message is created as `ready`; the user opens a pre-filled chat (`https://wa.me/<number>?text=<message>`) and presses send, and the app records it as `sent`. Ready messages appear in "Needs attention". Email is sent by the system. Connecting the WhatsApp Business Platform later only changes how a `ready` message leaves.
+
+Reminder job (daily worker task): for each request that is not paid, paused or cancelled, take the active rules not yet sent whose date has come; send only the latest of them (so a missed "3 days before" is never sent after the due date). Unique `(payment_request_id, rule_id)` makes the job idempotent. Email messages are sent; WhatsApp messages are prepared as `ready`. Channel: the rule's, or the customer's preferred (`phone` → WhatsApp); email without an address falls back to WhatsApp. Sending never changes the debt (spec §5).
 
 ### User
 An employee using the admin app.
@@ -168,4 +231,4 @@ An employee using the admin app.
 
 ## Coming in later phases
 
-Management agreement and billing plan versions (Phase 2), charges, payment requests, payments and allocations (Phase 2), quotes, approvals and work orders (Phase 4), vendors, buildings, tasks and calendar items. Until then the dashboard figures for collections and debts use sample data.
+Management agreement and billing plan versions (Phase 2), charges, payments and allocations (Phase 2), quotes, approvals and work orders (Phase 4), professional documents with expiry (Phase 4), building ledgers and HOA budgets (Buildings module), tasks and calendar items. Until then the dashboard figures for collections and debts use sample data.

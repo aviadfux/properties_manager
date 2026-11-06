@@ -10,9 +10,10 @@ const PATHS: Record<SearchResult["kind"], string> = {
   property: "/properties",
   tenant: "/tenants",
   issue: "/issues",
+  professional: "/professionals",
 };
 
-/** Global search (spec §3): customers, properties, tenants and issues; keyboard-operable combobox. */
+/** Global search (spec §3): customers, properties, tenants, professionals and issues; keyboard-operable combobox. */
 export function SearchBox() {
   const { t } = useI18n();
   const navigate = useNavigate();
@@ -34,6 +35,7 @@ export function SearchBox() {
     property: t.nav.properties,
     tenant: t.nav.tenants,
     issue: t.nav.issues,
+    professional: t.nav.professionals,
   };
 
   function go(r: SearchResult) {

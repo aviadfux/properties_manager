@@ -30,3 +30,23 @@ body {
     border-radius: 4px;
   }
 }
+
+/* Printing a generated form: only the form itself (.print-area) is printed. */
+@media print {
+  body {
+    background: #fff;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0 0 auto 0;
+    border: 0 !important;
+    padding: 0 !important;
+  }
+}

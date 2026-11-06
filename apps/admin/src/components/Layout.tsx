@@ -13,6 +13,9 @@ const NAV: { to: string; key: keyof ReturnType<typeof useI18n>["t"]["nav"]; icon
   { to: "/properties", key: "properties", icon: "building" },
   { to: "/tenants", key: "tenants", icon: "key" },
   { to: "/issues", key: "issues", icon: "wrench" },
+  { to: "/professionals", key: "professionals", icon: "briefcase" },
+  { to: "/payments", key: "payments", icon: "send" },
+  { to: "/forms", key: "forms", icon: "file" },
 ];
 
 function Nav({ onNavigate }: { onNavigate?: () => void }) {

@@ -2,7 +2,7 @@
 
 **Property Management & Investments — General Edition**
 
-Version 1.5 | October 28, 2026 | Specification and Phased Rollout
+Version 1.6 | November 5, 2026 | Specification and Phased Rollout
 
 ## 1. Purpose and Scope of the System
 
@@ -28,7 +28,7 @@ Starting point: about 10 properties, no managed buildings, and a single internal
 
 ### Hierarchy and Relationships
 
-A building contains units. A unit can be an apartment, retail unit, office or other commercial property, and can also exist without a managed building. One client may hold several units; a unit may have several owners. Relationships to owners and tenants are stored with start and end dates, so that a change of occupants does not alter history.
+A building contains units, and properties may nest further: a complex contains buildings, a building contains units, parking spaces and storage rooms. A property owned as a whole passes its owners to its parts unless a part has owners of its own. A unit can be an apartment, retail unit, office or other commercial property, and can also exist without a managed building. One client may hold several units; a unit may have several owners. Relationships to owners and tenants are stored with start and end dates, so that a change of occupants does not alter history.
 
 | Record | Key required fields |
 |---|---|
@@ -37,7 +37,7 @@ A building contains units. A unit can be an apartment, retail unit, office or ot
 | Unit | Identifier, type, address, area, owners, occupants, occupancy status and building association |
 | Management agreement | Client, properties, validity, price, calculation basis, billing dates, adjustment rules, owner-approval threshold and signed copy |
 | Lease | Unit, parties, term, rent used for calculation, indexation, options and notice deadlines, guarantees, documents and reminders |
-| Vendor | Trade, contact and payment details, documents, insurance and licenses with expiry, rating and active status |
+| Vendor (professional) | Trades, service areas (regions made of cities, plus single cities), contact and payment details, documents, insurance and licenses with expiry, rating and active status |
 | Organization | Name, branding, language, currency, tax settings, provider credentials and approval rules |
 | Guarantee / deposit | Type (bank guarantee, promissory note, cash deposit), amount, provider, expiry, release conditions and linked lease |
 | Insurance policy | Insured party, building or vendor, coverage, expiry and policy document |
@@ -70,7 +70,8 @@ Move-in and move-out are recorded with photos, condition notes, meter readings a
 |---|---|
 | Organization | A management company using the system; every record belongs to exactly one organization |
 | Customer (client) | The property owner who signs a management agreement with the company; co-owners are recorded with their shares |
-| Property | A managed unit (apartment, office, shop or other commercial space), owned by a customer and optionally leased to tenants |
+| Property | A managed unit (apartment, office, shop or other commercial space), or a building or complex that contains units; owned by a customer and optionally leased to tenants |
+| Professional | A vendor who does maintenance work (plumber, electrician, contractor); has trades and service areas and may be assigned to an issue. The system suggests professionals by trade, by area and by where they are working now |
 | Tenant / occupant | The person or business occupying a unit under a lease |
 | Payer | The party actually billed for a specific charge; may differ from the liable party |
 | Managing Director | The organization's principal administrator and expense approver |
@@ -106,7 +107,7 @@ The manager can move between views of the same data: the customers list leads to
 
 ### Property Card and Building Card
 
-Property card: details, owners and occupants over time, agreements, charges, issues and documents. Building card: units, HOA representatives, collections, budget, regular vendors and preventive maintenance. Employees see their own tasks and assigned requests, without financial information not required for their role.
+Property card: details, owners and occupants over time, agreements, charges, issues and documents, and a history timeline of ownership, leases, and issues with the professional and actual cost; for a building or complex it includes its units. The client card has the same history across the client's properties. Building card: units, HOA representatives, collections, budget, regular vendors and preventive maintenance. Employees see their own tasks and assigned requests, without financial information not required for their role.
 
 ### Unified Calendar
 
@@ -165,7 +166,7 @@ A duplicate event never creates an additional receipt or document. On a timeout 
 
 ### Collections and Reminders
 
-Suggested reminders: three days before the due date, on the due date, and after 7 and 14 days overdue. Timing and wording are configurable. Full payment stops reminders; a dispute allows a pause with a reason and a review date. Sending a reminder does not change the debt.
+Suggested reminders: three days before the due date, on the due date, and after 7 and 14 days overdue. Timing, channel and wording are configurable; each reminder goes by email or WhatsApp according to the client's preferred channel, and every message sent is kept on the request. Email is sent by the system. WhatsApp is not integrated at this stage: the system prepares the message, and the user sends it in one click from a chat opened with the text already filled in. A reminder whose date was missed is not sent late. Full payment stops reminders; a dispute allows a pause with a reason and a review date. Sending a reminder does not change the debt.
 
 ### Bank Statement Import and Accountant Export
 
@@ -257,6 +258,8 @@ Identity documents and payment details not required by the process must not be u
 ### Communication
 
 Messages are sent from templates per channel and language. Each contact has a preferred language and channel and a recorded consent for non-essential messages; opt-outs are honored. All outgoing and incoming messages are kept in the communication history on the client and tenant cards.
+
+Document templates (for example a handover protocol or a work order) are kept per language with fields filled from a record: a lease, property, client, tenant, issue or payment request. A missing value is flagged before the document is printed or saved as PDF.
 
 ### WhatsApp Intake Bot
 

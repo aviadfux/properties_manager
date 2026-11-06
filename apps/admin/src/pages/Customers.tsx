@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { useParams } from "react-router";
+import { ChannelBadge } from "@/components/Channel";
+import { History } from "@/components/History";
 import { IssueTable } from "@/components/IssueTable";
 import { Badge, Card, Empty, EntityLink, Fields, Loaded, Ltr, PageHeader, Table, Tabs, Td } from "@/components/ui";
-import { getCustomer, listCustomers } from "@/data/api";
+import { getCustomer, listCustomers, listPaymentRequests } from "@/data/api";
 import { useI18n } from "@/i18n";
+import { PaymentRequestTable } from "./Payments";
 import { PropertyTable } from "./Properties";
 
 export function Customers() {
@@ -45,17 +48,18 @@ export function Customers() {
   );
 }
 
-type Tab = "properties" | "tenants" | "issues" | "details";
+type Tab = "properties" | "tenants" | "issues" | "payments" | "history" | "details";
 
 export function CustomerDetail() {
   const { id = "" } = useParams();
   const { t, fmt } = useI18n();
   const query = useQuery({ queryKey: ["customer", id], queryFn: () => getCustomer(id) });
   const [tab, setTab] = useState<Tab>("issues");
+  const payments = useQuery({ queryKey: ["payment-requests", "customer", id], queryFn: () => listPaymentRequests({ status: "all", customerId: id }) });
 
   return (
     <Loaded query={query}>
-      {({ customer: c, properties, tenants, issues, pastProperties }) => {
+      {({ customer: c, properties, tenants, issues, pastProperties, history }) => {
         const openIssues = issues.filter((i) => i.status !== "closed" && i.status !== "cancelled");
         return (
           <>
@@ -83,6 +87,8 @@ export function CustomerDetail() {
                 { key: "issues", label: t.customers.tabs.issues, count: openIssues.length },
                 { key: "properties", label: t.customers.tabs.properties, count: properties.length },
                 { key: "tenants", label: t.customers.tabs.tenants, count: tenants.length },
+                { key: "payments", label: t.customers.tabs.payments },
+                { key: "history", label: t.customers.tabs.history },
                 { key: "details", label: t.customers.tabs.details },
               ]}
             />
@@ -133,6 +139,8 @@ export function CustomerDetail() {
                 ) : (
                   <Empty />
                 ))}
+              {tab === "payments" && <Loaded query={payments}>{(rows) => <PaymentRequestTable rows={rows} hideCustomer />}</Loaded>}
+              {tab === "history" && <History history={history} showProperty />}
               {tab === "details" && (
                 <Card>
                   <Fields
@@ -141,7 +149,7 @@ export function CustomerDetail() {
                       [t.common.email, c.email],
                       [t.customers.taxId, c.taxId],
                       [t.customers.billingAddress, c.billingAddress],
-                      [t.customers.preferredChannel, t.channels[c.preferredChannel]],
+                      [t.customers.preferredChannel, <ChannelBadge channel={c.preferredChannel} />],
                       [t.customers.preferredLanguage, c.preferredLanguage === "he" ? "עברית" : "English"],
                       [t.common.notes, c.notes],
                     ]}
