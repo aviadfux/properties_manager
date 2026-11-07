@@ -1,12 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { ChannelBadge } from "@/components/Channel";
 import { History } from "@/components/History";
+import { Icon } from "@/components/icons";
+import { SensitiveValue } from "@/components/Sensitive";
 import { IssueTable } from "@/components/IssueTable";
 import { Badge, Card, Empty, EntityLink, Fields, Loaded, Ltr, PageHeader, Table, Tabs, Td } from "@/components/ui";
-import { getCustomer, listCustomers, listPaymentRequests } from "@/data/api";
+import { getCustomer, listAgreements, listCustomers, listPaymentRequests } from "@/data/api";
 import { useI18n } from "@/i18n";
+import { AgreementTable } from "./Agreements";
+import { primary, secondary } from "./Forms";
 import { PaymentRequestTable } from "./Payments";
 import { PropertyTable } from "./Properties";
 
@@ -15,7 +19,16 @@ export function Customers() {
   const query = useQuery({ queryKey: ["customers"], queryFn: listCustomers });
   return (
     <>
-      <PageHeader title={t.customers.title} intro={t.customers.intro} />
+      <PageHeader
+        title={t.customers.title}
+        intro={t.customers.intro}
+        actions={
+          <Link to="/agreements/import" className={primary}>
+            <Icon name="upload" className="h-4 w-4" />
+            {t.customers.importAgreement}
+          </Link>
+        }
+      />
       <Loaded query={query}>
         {(rows) => (
           <Table head={[t.common.number, t.common.name, t.common.phone, t.customers.properties, t.customers.tenants, t.customers.openIssues]}>
@@ -48,7 +61,7 @@ export function Customers() {
   );
 }
 
-type Tab = "properties" | "tenants" | "issues" | "payments" | "history" | "details";
+type Tab = "properties" | "tenants" | "issues" | "payments" | "agreements" | "history" | "details";
 
 export function CustomerDetail() {
   const { id = "" } = useParams();
@@ -56,6 +69,7 @@ export function CustomerDetail() {
   const query = useQuery({ queryKey: ["customer", id], queryFn: () => getCustomer(id) });
   const [tab, setTab] = useState<Tab>("issues");
   const payments = useQuery({ queryKey: ["payment-requests", "customer", id], queryFn: () => listPaymentRequests({ status: "all", customerId: id }) });
+  const agreements = useQuery({ queryKey: ["agreements", "customer", id], queryFn: () => listAgreements({ customerId: id }) });
 
   return (
     <Loaded query={query}>
@@ -88,6 +102,7 @@ export function CustomerDetail() {
                 { key: "properties", label: t.customers.tabs.properties, count: properties.length },
                 { key: "tenants", label: t.customers.tabs.tenants, count: tenants.length },
                 { key: "payments", label: t.customers.tabs.payments },
+                { key: "agreements", label: t.customers.tabs.agreements, count: agreements.data?.length },
                 { key: "history", label: t.customers.tabs.history },
                 { key: "details", label: t.customers.tabs.details },
               ]}
@@ -140,6 +155,17 @@ export function CustomerDetail() {
                   <Empty />
                 ))}
               {tab === "payments" && <Loaded query={payments}>{(rows) => <PaymentRequestTable rows={rows} hideCustomer />}</Loaded>}
+              {tab === "agreements" && (
+                <>
+                  <div className="mb-3 flex justify-end">
+                    <Link to={`/agreements/new?customer=${c.id}`} className={secondary}>
+                      <Icon name="agreement" className="h-4 w-4" />
+                      {t.customers.newAgreement}
+                    </Link>
+                  </div>
+                  <Loaded query={agreements}>{(rows) => <AgreementTable rows={rows} hideCustomer />}</Loaded>
+                </>
+              )}
               {tab === "history" && <History history={history} showProperty />}
               {tab === "details" && (
                 <Card>
@@ -147,7 +173,7 @@ export function CustomerDetail() {
                     items={[
                       [t.common.phone, <Ltr>{fmt.phone(c.phone)}</Ltr>],
                       [t.common.email, c.email],
-                      [t.customers.taxId, c.taxId],
+                      [t.customers.taxId, c.taxId && <SensitiveValue value={c.taxId} />],
                       [t.customers.billingAddress, c.billingAddress],
                       [t.customers.preferredChannel, <ChannelBadge channel={c.preferredChannel} />],
                       [t.customers.preferredLanguage, c.preferredLanguage === "he" ? "עברית" : "English"],

@@ -3,11 +3,11 @@
 // apps/api/core) when it generates documents and sends messages.
 //
 // Line markers (for documents; messages are sent as plain text):
-//   # Title        ## Section        - bullet        [ ] checkbox        --- divider
+//   # Title    ## Section    ### Subsection    - bullet    [ ] checkbox    --- divider
 // Underscores ("______") are kept as blanks to fill in by hand.
 import type { FormContext } from "@/domain/types";
 
-const COMPANY = ["company.name", "company.phone", "company.email", "company.address", "company.bankDetails", "today"];
+const COMPANY = ["company.name", "company.taxId", "company.representative", "company.phone", "company.email", "company.address", "company.bankDetails", "today"];
 const PROPERTY = [
   "property.fullAddress",
   "property.address",
@@ -19,6 +19,8 @@ const PROPERTY = [
   "property.rooms",
   "property.number",
   "property.partOf",
+  "property.block",
+  "property.parcel",
 ];
 const OWNER = ["owner.name", "owner.phone", "owner.email", "owner.taxId"];
 const CUSTOMER = ["customer.name", "customer.number", "customer.phone", "customer.email", "customer.taxId", "customer.billingAddress"];
@@ -26,6 +28,16 @@ const TENANT = ["tenant.name", "tenant.phone", "tenant.email", "tenant.taxId"];
 const LEASE = ["lease.start", "lease.end", "lease.rent"];
 const ISSUE = ["issue.number", "issue.title", "issue.description", "issue.category", "issue.location", "issue.urgency", "issue.opened"];
 const PROFESSIONAL = ["professional.name", "professional.phone"];
+const AGREEMENT = [
+  "agreement.number",
+  "agreement.start",
+  "agreement.end",
+  "agreement.fee",
+  "agreement.billing",
+  "agreement.approvalThreshold",
+  "agreement.properties",
+  "agreement.owners",
+];
 const REQUEST = ["request.number", "request.description", "request.amount", "request.paid", "request.balance", "request.due"];
 
 /** The placeholders each record type can fill. */
@@ -36,7 +48,33 @@ export const FIELDS: Record<FormContext, string[]> = {
   tenant: [...TENANT, ...COMPANY],
   issue: [...ISSUE, ...PROPERTY, ...OWNER, ...PROFESSIONAL, ...COMPANY],
   payment_request: [...REQUEST, ...CUSTOMER, ...COMPANY],
+  // The main property's fields too, for documents about one property (a power of attorney, a quote).
+  agreement: [...AGREEMENT, ...CUSTOMER, ...PROPERTY, ...COMPANY],
 };
+
+/** Fields whose value may span lines (a list of properties, a description); all others are one line. */
+const MULTILINE = new Set(["agreement.properties", "agreement.owners", "issue.description"]);
+
+/**
+ * The fields an agreement template needs so that the document states every detail of the record and
+ * can be imported back (checked when the template is edited, and on every generated agreement).
+ */
+export const AGREEMENT_REQUIRED = [
+  "customer.name",
+  "customer.taxId",
+  "customer.phone",
+  "customer.email",
+  "customer.billingAddress",
+  "agreement.start",
+  "agreement.end",
+  "agreement.fee",
+  "agreement.billing",
+  "agreement.approvalThreshold",
+  "agreement.properties",
+];
+
+/** Required fields the template body does not use. */
+export const missingRequired = (body: string, required: string[]) => required.filter((key) => !new RegExp(`\\{\\{\\s*${key.replace(".", "\\.")}\\s*\\}\\}`).test(body));
 
 const PLACEHOLDER = /\{\{\s*([\w.]+)\s*\}\}/g;
 
@@ -55,7 +93,11 @@ export function render(body: string, context: FormContext, values: Record<string
       unknown.add(key);
       return whole;
     }
-    const value = values[key];
+    // A value is inserted as plain text: a line break inside a one-line field (a name pasted with an
+    // Enter) must not start a new heading or bullet in the document. Values are never expanded again,
+    // so a "{{…}}" inside a value stays as written.
+    const raw = values[key];
+    const value = raw === undefined ? undefined : MULTILINE.has(key) ? raw.trim() : raw.replace(/\s*[\r\n]+\s*/g, " ").trim();
     if (value === undefined || value === "") {
       missing.add(key);
       return "—";
@@ -66,7 +108,7 @@ export function render(body: string, context: FormContext, values: Record<string
 }
 
 export type Block =
-  | { type: "title" | "section" | "paragraph" | "bullet"; text: string }
+  | { type: "title" | "section" | "subsection" | "paragraph" | "bullet"; text: string }
   | { type: "checkbox"; text: string }
   | { type: "divider" };
 
@@ -76,7 +118,8 @@ export function toBlocks(text: string): Block[] {
   for (const raw of text.split("\n")) {
     const line = raw.trimEnd();
     if (!line.trim()) continue;
-    if (line.startsWith("## ")) blocks.push({ type: "section", text: line.slice(3) });
+    if (line.startsWith("### ")) blocks.push({ type: "subsection", text: line.slice(4) });
+    else if (line.startsWith("## ")) blocks.push({ type: "section", text: line.slice(3) });
     else if (line.startsWith("# ")) blocks.push({ type: "title", text: line.slice(2) });
     else if (line.startsWith("- ")) blocks.push({ type: "bullet", text: line.slice(2) });
     else if (/^\[\s?\]\s/.test(line)) blocks.push({ type: "checkbox", text: line.replace(/^\[\s?\]\s/, "") });

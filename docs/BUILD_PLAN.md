@@ -78,11 +78,11 @@ Next.js static site in `apps/web`, Hebrew (RTL) + English, company details from 
 
 ### Phase 0b — Admin screens with sample data (≈1 week)
 `apps/admin`: app shell (sidebar, search, language switch), dashboard with the "Needs attention" strip, To-do page, customers / properties / tenants / issues lists and cards (spec §3). Data comes from a sample-data module behind the same functions the real API client will implement, typed from `docs/DATA_MODEL.md`.
-Added after the first review: professionals (trades, service regions, where they work now, optional professional per issue with ranked suggestions), history on property and customer cards, nested properties (complex › building › units), form and message templates with print / PDF, and payment requests with a reminder schedule (WhatsApp as a pre-filled chat, no integration; sample data, email sending in Phase 2).
+Added after the first review: professionals (trades, service regions, where they work now, optional professional per issue with ranked suggestions), history on property and customer cards, nested properties (complex › building › units), form and message templates with print / PDF, and payment requests with a reminder schedule (WhatsApp as a pre-filled chat, no integration; sample data, email sending in Phase 2). Then: management agreements — created from a customer's details and exported (print / PDF / Word), or imported from an existing agreement to create the customer (read locally, checked by the user); templates for the agreement, a power of attorney and a price quote, modeled on the company's own documents (generic wording; the company's exact text is entered in the app) — and the security baseline in [SECURITY.md](SECURITY.md): masked IDs, redaction before anything could reach an AI service, content security policy, dependency and secret scanning in CI.
 *Exit*: the user clicks through all views and approves the screens and the data model.
 
 ### Phase 0 — Foundations (≈1–2 weeks)
-Repo, CI, environments (local / staging / production), auth with 2FA, organizations and roles, RLS, i18n + RTL shell, audit log, file storage, error monitoring, deployment pipeline.
+Repo, CI, environments (local / staging / production), auth with 2FA, organizations and roles, RLS, i18n + RTL shell, audit log, file storage, error monitoring, deployment pipeline. Security baseline from [SECURITY.md](SECURITY.md): encryption of identifiers at rest, security headers, logs without personal data, the Python port of the redaction rules.
 *Exit*: a user logs in with 2FA in Hebrew or English; the cross-organization isolation test (§10 #15) passes.
 
 ### Phase 1 — Operational core (≈2–3 weeks)
@@ -114,7 +114,7 @@ Opening-data import with dry run and duplicate detection, backup restore drill, 
 6. Buildings module: ledgers, HOA budgets, allocation rules, building dashboard (before the first building)
 7. Leasing pipeline, lease lifecycle checklists (inspections, utility transfers)
 8. Communication hub (templates, SMS, consent) and the WhatsApp intake bot (§8): service requests, new inquiries, request status, handoff to the team inbox. A good candidate to move earlier, right after the tenant portal or instead of it, since tenants use WhatsApp more readily than a portal
-9. AI assistance (request triage, invoice / proof extraction, reply drafts)
+9. AI assistance (request triage, invoice / proof extraction, reply drafts, reading agreements the rules do not recognize) — only through the redaction layer — rules + known values + a local NER model on a worker without internet access, a leak check before every call, failing closed — and with a no-training, no-retention provider ([SECURITY.md](SECURITY.md) §2)
 
 Estimates assume part-time work by the user with Claude writing most of the code; they are for sequencing, not commitments.
 

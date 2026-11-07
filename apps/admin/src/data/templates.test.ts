@@ -3,7 +3,7 @@ import type { FormContext } from "@/domain/types";
 import { en } from "@/i18n/en";
 import { he } from "@/i18n/he";
 import * as db from "./sample";
-import { FIELDS, render, toBlocks } from "./templates";
+import { AGREEMENT_REQUIRED, FIELDS, missingRequired, render, toBlocks } from "./templates";
 
 describe("render", () => {
   it("fills known fields, tolerating spaces inside the braces", () => {
@@ -56,5 +56,33 @@ describe("fields", () => {
         expect(render(body!, t.context as FormContext, {}).unknown, `${t.name} (${language})`).toEqual([]);
       }
     }
+  });
+});
+
+describe("values inside documents", () => {
+  it("keeps one-line fields on one line, so a pasted line break cannot add a heading or bullet", () => {
+    const { text } = render("Name: {{customer.name}}", "customer", { "customer.name": "Dana\n## Katz\r\n- x" });
+    expect(text).toBe("Name: Dana ## Katz - x");
+    expect(toBlocks(text)).toHaveLength(1);
+  });
+
+  it("keeps the lines of list fields", () => {
+    expect(render("{{agreement.properties}}", "agreement", { "agreement.properties": "- A\n- B" }).text).toBe("- A\n- B");
+  });
+
+  it("never expands placeholders that come from data", () => {
+    expect(render("{{customer.name}}", "customer", { "customer.name": "{{company.bankDetails}}", "company.bankDetails": "secret" }).text).toBe("{{company.bankDetails}}");
+  });
+});
+
+describe("agreement templates", () => {
+  it("the sample agreement template states every detail, in both languages", () => {
+    const ft2 = db.formTemplates.find((t) => t.id === "ft2")!;
+    expect(missingRequired(ft2.body.he!, AGREEMENT_REQUIRED)).toEqual([]);
+    expect(missingRequired(ft2.body.en!, AGREEMENT_REQUIRED)).toEqual([]);
+  });
+
+  it("reports the fields a template leaves out", () => {
+    expect(missingRequired("Name: {{ customer.name }}", ["customer.name", "customer.taxId"])).toEqual(["customer.taxId"]);
   });
 });

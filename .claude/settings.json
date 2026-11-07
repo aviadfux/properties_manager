@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(**/private/**)",
+      "Read(**/*.docx)",
+      "Read(**/*.doc)",
+      "Read(**/*.pdf)",
+      "Read(**/*.xlsx)",
+      "Read(**/*.xls)",
+      "Read(**/.env)",
+      "Read(**/.env.*)"
+    ]
+  }
+}

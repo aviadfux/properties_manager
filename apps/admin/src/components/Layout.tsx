@@ -15,6 +15,7 @@ const NAV: { to: string; key: keyof ReturnType<typeof useI18n>["t"]["nav"]; icon
   { to: "/issues", key: "issues", icon: "wrench" },
   { to: "/professionals", key: "professionals", icon: "briefcase" },
   { to: "/payments", key: "payments", icon: "send" },
+  { to: "/agreements", key: "agreements", icon: "agreement" },
   { to: "/forms", key: "forms", icon: "file" },
 ];
 

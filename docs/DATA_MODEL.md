@@ -37,7 +37,7 @@ Common fields on every entity: `id`, `organization_id`, `created_at`, `updated_a
                 └──────────────┘
 ```
 
-`A ──< B` means one A has many B. Property also has `parent_id → Property` (a unit in a building, a building in a complex). Customer ──< PaymentRequest ──< OutgoingMessage; FormTemplate is used by ReminderRule and for generated documents.
+`A ──< B` means one A has many B. Property also has `parent_id → Property` (a unit in a building, a building in a complex). Customer ──< PaymentRequest ──< OutgoingMessage; Customer ──< ManagementAgreement >──< Property; FormTemplate is used by ReminderRule and for generated documents.
 
 ## Entities
 
@@ -49,7 +49,7 @@ The property owner who contracts with the company for management (spec glossary:
 | `number` | int | Human number per organization |
 | `kind` | enum `individual` \| `company` | |
 | `name` | str | Full name or company name |
-| `tax_id` | str? | ID number / company number |
+| `tax_id` | str? | ID number / company number. **Identifier**: encrypted at rest, masked on screen ([SECURITY.md](SECURITY.md)) |
 | `phone` | str | E.164 format |
 | `email` | str? | |
 | `billing_address` | str? | |
@@ -58,7 +58,9 @@ The property owner who contracts with the company for management (spec glossary:
 | `status` | enum `active` \| `inactive` | `inactive` after offboarding |
 | `notes` | text? | Internal only |
 
-Derived: properties (current ownerships), tenants (active leases on those properties), open issues.
+Derived: properties (current ownerships), tenants (active leases on those properties), open issues, agreements.
+
+Possible duplicates (spec §2): an existing customer with the same `tax_id` (digits only), email (case-insensitive) or phone (last 9 digits) is offered before a new customer is created.
 
 ### Property
 Anything the company manages: a complex, a building, an apartment, office, shop, parking space or storage room. Properties nest: a unit can be part of a building, a building part of a complex, a parking space part of a building. A unit can also exist without a managed building.
@@ -74,6 +76,7 @@ Anything the company manages: a complex, a building, an apartment, office, shop,
 | `floor` | int? | |
 | `area_sqm` | decimal? | |
 | `rooms` | decimal? | |
+| `block` / `parcel` | str? / str? | Land registry גוש / חלקה. Identify the property in agreements and powers of attorney, and match it on import (units in one building share them; the address decides) |
 | `notes` | text? | |
 
 Derived: current customer (ownership), current tenants (active leases), parts (children, recursively), occupancy. A property without parts is `occupied` if it has an active lease, else `vacant`; a property with parts is `occupied` / `partial` / `vacant` from its innermost units. Dashboard occupancy counts units without parts only. A property's issues, leases and history include those of its parts.
@@ -195,17 +198,49 @@ A region the organization works in, made of cities (e.g. Gush Dan = Tel Aviv, Ra
 ### History (derived, not stored)
 The history on a property or customer card is a view over existing rows, newest first: ownership periods, leases (start–end, rent) and issues (with professional, resolution and actual cost). A property's history includes its parts. A customer's history covers their ownership periods (also past ones), the leases on those properties that overlap the ownership period, and issues whose `customer_id` snapshot is the customer. Summary: number of leases, tenants, issues, total repair cost, professionals used.
 
+### ManagementAgreement
+The contract between the company and an owner (spec §2). Created from the customer's details and exported as a document, or imported from an existing document.
+
+| Field | Type | Notes |
+|---|---|---|
+| `number` | int | Human number per organization |
+| `customer_id` | FK → Customer | |
+| `property_ids` | FK[] → Property | Through a join table; a complex or building covers its parts |
+| `start_date` / `end_date` | date / date? | No end date: until either side ends it |
+| `fee_model` | enum `fixed` \| `percent_of_rent` \| `percent_with_minimum` | `percent_with_minimum`: the percentage or the monthly minimum, whichever is higher |
+| `fee_minor` / `fee_percent` | int? / decimal? | The amount (fixed fee or monthly minimum) and the percentage the model uses; the other is empty |
+| `plus_vat` | bool | The fee is before VAT |
+| `billing_frequency` | enum `monthly` \| `quarterly` | When the fee is charged |
+| `approval_threshold_minor` | int? | Owner consent above this cost (spec §7) |
+| `language` | enum `he` \| `en` | |
+| `source` | enum `generated` \| `imported` | |
+| `file_id` | FK? → File | The imported or signed document, in private file storage (the sample keeps only `file_name`) |
+| `signed_at` | date? | Empty = draft |
+
+Status (derived): `draft` (not signed) → `upcoming` / `active` → `ended` (after `end_date`). Billing-plan versions (spec §4) come in Phase 2.
+
+**Export:** a FormTemplate with context `agreement` renders the agreement (fields `agreement.*` and `customer.*`); dates are numeric (`31/12/2026`). It is printed, saved as PDF, or downloaded as a Word file built in the browser (`apps/admin/src/data/docx.ts`).
+
+**Import** (`apps/admin/src/data/agreements.ts`, ported to `apps/api/core`): the document's text is read where it is opened (`.docx` or `.txt`; PDF later) — never by an outside service. Rules: a heading naming the owner ("## The owner", "הבעלים") marks the owner's section; labeled lines ("Name:", "ת.ז.:", "Phone:") give the values; the company's own name, phone and email are ignored; free text falls back to patterns ("between … and Moshe Levi, ID …") marked "please check". IDs are checked with the Israeli check digit. Property addresses are matched to existing properties. The user checks every value; an import into an existing customer only fills empty fields. The document's text is not stored. An agreement exported by the system always imports back exactly (tested with 150 random agreements per run).
+
+Files are recognized by content, not name (`apps/admin/src/data/documents.ts`): `.docx`, and text in UTF-8, UTF-16 or Windows-1255; old `.doc` and password-protected files, PDFs, scans without text, damaged and oversized files each get a specific message. Parsing: Israeli and international phones; day-first dates, including Hebrew and English month names, only real calendar dates; names without titles or "(hereinafter …)"; co-owners, a fee "plus VAT" and reversed dates are flagged.
+
+**Checks** (`apps/admin/src/data/checks.ts`, enforced by the data layer, shown before saving): errors block saving — name, phone, email, start and end dates, fee range, a duplicate agreement (same customer, start date and properties); warnings ask for a look — ID check digit or a passport, an unusual fee, a property already under another agreement for the same period, recorded as someone else's, or not found, a possible duplicate customer. **Export check:** every generated agreement document is read back with the import rules and compared with its record, field by field; a Word file is read back before it is saved. Agreement templates must use the fields in `AGREEMENT_REQUIRED`; the editor lists any that are missing.
+
+Documents made from an agreement (FormTemplate context `agreement`; the main property's fields are available too): the **agreement** itself (`importable`: states every detail, checked against the record, imports back), a **power of attorney** (all current owners of the main property sign; appoints the company's representative; property with block and parcel), and a **price quote** (sent before signing, from a draft agreement). The import also reads the usual Israeli layout: parties as "בין … לבין" blocks (the designation "(להלן: …)" says which is the owner), the property in the recitals with its block and parcel, the term starting on signing, and fees such as "8.5% or ₪400, whichever is higher, plus VAT, at the start of each quarter".
+
 ### FormTemplate
 A template for a printable document (handover protocol, work order…) or for a message (payment request, reminder).
 
 | Field | Type | Notes |
 |---|---|---|
 | `name` | str | |
-| `context` | enum `lease` \| `property` \| `customer` \| `tenant` \| `issue` \| `payment_request` | The record a form is generated from; decides the available fields |
+| `context` | enum `lease` \| `property` \| `customer` \| `tenant` \| `issue` \| `payment_request` \| `agreement` | The record a form is generated from; decides the available fields |
 | `kind` | enum `document` \| `message` | |
 | `body` | map language → text | Text with `{{field}}` placeholders; at least one language |
+| `importable` | bool | Context `agreement` only: the template is the agreement itself (must use every field in `AGREEMENT_REQUIRED`) |
 
-Template rules (`apps/admin/src/data/templates.ts`, ported to `apps/api/core`): placeholders per context are a fixed list; a known field without a value renders as "—" and is reported; an unknown field is left as written and reported. Line markers for documents: `#` title, `##` section, `-` bullet, `[ ]` checkbox, `---` divider, underscores = blank to fill by hand. Generated documents are rendered in the template's language and direction, and printed or saved as PDF. Later: save the generated PDF to the record's documents.
+Template rules (`apps/admin/src/data/templates.ts`, ported to `apps/api/core`): placeholders per context are a fixed list; a known field without a value renders as "—" and is reported; an unknown field is left as written and reported. Line markers for documents: `#` title, `##` section, `###` subsection, `-` bullet, `[ ]` checkbox, `---` divider, underscores = blank to fill by hand. Generated documents are rendered in the template's language and direction, and printed, saved as PDF or downloaded as Word. Later: save the generated PDF to the record's documents.
 
 ### PaymentRequest, ReminderRule, OutgoingMessage (Phase 2, sample-only now)
 
@@ -231,4 +266,4 @@ An employee using the admin app.
 
 ## Coming in later phases
 
-Management agreement and billing plan versions (Phase 2), charges, payments and allocations (Phase 2), quotes, approvals and work orders (Phase 4), professional documents with expiry (Phase 4), building ledgers and HOA budgets (Buildings module), tasks and calendar items. Until then the dashboard figures for collections and debts use sample data.
+Agreement billing-plan versions (Phase 2), charges, payments and allocations (Phase 2), quotes, approvals and work orders (Phase 4), professional documents with expiry (Phase 4), building ledgers and HOA budgets (Buildings module), tasks and calendar items. Until then the dashboard figures for collections and debts use sample data.

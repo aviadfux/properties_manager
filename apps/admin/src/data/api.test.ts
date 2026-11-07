@@ -240,6 +240,139 @@ describe("payment reminders", () => {
   });
 });
 
+describe("management agreements", () => {
+  const terms = { propertyIds: ["p5"], startDate: "2026-12-01", feeModel: "percent_of_rent" as const, feePercent: 5, language: "he" as const };
+  const owner = { kind: "individual" as const, name: "משה לוי", taxId: "207654328", phone: "+972541234567", email: "moshe@example.com", preferredLanguage: "he" as const };
+
+  it("knows which agreements are drafts, in force or ending", async () => {
+    const rows = await api.listAgreements();
+    expect(Object.fromEntries(rows.map((a) => [a.id, a.status]))).toEqual({ ag1: "active", ag2: "active", ag3: "active", ag4: "draft" });
+    expect((await api.listAgreements({ customerId: "c3" })).map((a) => a.id)).toEqual(["ag2"]);
+  });
+
+  it("fills an agreement document from the customer's details", async () => {
+    const values = await api.getFormValues("agreement", "ag1", "he");
+    expect(values).toMatchObject({
+      "customer.name": "יוסי כהן",
+      "customer.taxId": "034827139",
+      "agreement.start": "01/03/2023",
+      "agreement.end": "ללא מועד סיום",
+      "agreement.fee": expect.stringMatching(/^8\.5% משכר הדירה או .*400.* לחודש, לפי הגבוה מביניהם בתוספת מע״מ$/),
+      "agreement.billing": "בתחילת כל רבעון",
+      "property.block": "6123",
+      "agreement.properties": "- הרצל 12 / 5, רמת גן (גוש 6123, חלקה 45)\n- ביאליק 17 / 2, רמת גן (גוש 6124, חלקה 112)",
+      "agreement.owners": "- יוסי כהן, ת.ז. / ח.פ. 034827139",
+    });
+  });
+
+  it("creates a draft from a customer's details, and marks it signed", async () => {
+    const a = await api.createAgreement({ customerId: "c5", ...terms });
+    expect(a).toMatchObject({ number: 3005, source: "generated", feeMinor: undefined });
+    expect((await api.getAgreement(a.id)).status).toBe("draft");
+    await api.markAgreementSigned(a.id);
+    expect((await api.getAgreement(a.id)).status).toBe("upcoming");
+  });
+
+  it("rejects agreements that cannot be right", async () => {
+    await expect(api.createAgreement({ customerId: "c5", ...terms, endDate: "2026-11-01" })).rejects.toThrow(/end_before_start/);
+    await expect(api.createAgreement({ customerId: "c5", ...terms, feePercent: 0 })).rejects.toThrow(/fee_out_of_range/);
+    await expect(api.createAgreement({ customerId: "c5", ...terms, startDate: "2026-02-31" })).rejects.toThrow(/start_invalid/);
+    await expect(api.createAgreement({ customerId: "nobody", ...terms })).rejects.toThrow(/Unknown customer/);
+  });
+
+  it("creates a customer and an agreement from an imported document", async () => {
+    const before = db.customers.length;
+    const result = await api.importAgreement({ customer: owner, agreement: { ...terms, fileName: "agreement.docx" } });
+    expect(result.created).toBe(true);
+    expect(db.customers).toHaveLength(before + 1);
+    const { customer } = await api.getCustomer(result.customerId);
+    expect(customer).toMatchObject({ name: "משה לוי", number: 107, preferredChannel: "email", status: "active" });
+    expect(await api.getAgreement(result.agreementId)).toMatchObject({ source: "imported", fileName: "agreement.docx", customerId: result.customerId });
+  });
+
+  it("finds an existing customer by ID, email or phone before creating a duplicate", async () => {
+    expect((await api.findCustomerMatches({ taxId: "515-123-453" })).map((m) => [m.customer.id, m.by])).toEqual([["c3", "taxId"]]);
+    expect((await api.findCustomerMatches({ email: "YOSSI@example.com" }))[0]).toMatchObject({ by: "email", customer: { id: "c1" } });
+    expect((await api.findCustomerMatches({ phone: "+972524567890" }))[0]).toMatchObject({ by: "phone", customer: { id: "c5" } });
+    expect(await api.findCustomerMatches(owner)).toEqual([]);
+  });
+
+  it("fills only missing details of an existing customer, never overwriting", async () => {
+    const result = await api.importAgreement({
+      customer: { ...owner, name: "רונית שפירא", email: "ronit@example.com", taxId: "058173642" },
+      existingCustomerId: "c5",
+      agreement: terms,
+    });
+    expect(result).toMatchObject({ created: false, customerId: "c5", filled: ["taxId", "email"] });
+    const c5 = db.customers.find((c) => c.id === "c5")!;
+    expect(c5).toMatchObject({ name: "רונית שפירא", phone: "+972524567890", email: "ronit@example.com" });
+  });
+
+  it("saves nothing when the imported agreement is invalid", async () => {
+    const before = db.customers.length;
+    await expect(api.importAgreement({ customer: owner, agreement: { ...terms, startDate: "" } })).rejects.toThrow();
+    await expect(api.importAgreement({ customer: { ...owner, phone: "" }, agreement: terms })).rejects.toThrow();
+    expect(db.customers).toHaveLength(before);
+  });
+
+  it("saves imported details the way the system stores them", async () => {
+    const result = await api.importAgreement({
+      customer: { ...owner, name: "  משה   לוי ", phone: "054-123-4567", taxId: "20765-4328", email: " Moshe@Example.com " },
+      agreement: terms,
+    });
+    expect((await api.getCustomer(result.customerId)).customer).toMatchObject({ name: "משה לוי", phone: "+972541234567", taxId: "207654328", email: "moshe@example.com" });
+  });
+
+  it("refuses an import with invalid details, saying which", async () => {
+    await expect(api.importAgreement({ customer: { ...owner, email: "moshe@" }, agreement: terms })).rejects.toMatchObject({
+      checks: expect.arrayContaining([expect.objectContaining({ code: "email_invalid", level: "error" })]),
+    });
+    await expect(api.importAgreement({ customer: { ...owner, phone: "054-12" }, agreement: terms })).rejects.toThrow(/phone_invalid/);
+  });
+
+  it("refuses the same agreement twice", async () => {
+    await api.importAgreement({ customer: owner, agreement: terms });
+    const id = db.customers.at(-1)!.id;
+    await expect(api.importAgreement({ customer: owner, existingCustomerId: id, agreement: terms })).rejects.toThrow(/duplicate_agreement/);
+  });
+
+  it("warns about a property under another agreement, owned by someone else, or not found", async () => {
+    // p1 is c1's, under agreement #3001 with no end date.
+    const checks = await api.checkAgreementImport({ customer: owner, agreement: { ...terms, propertyIds: ["p1"] }, unmatchedAddresses: ["רחוב שלא קיים 1"] });
+    expect(checks.map((c) => [c.code, c.level, c.detail])).toEqual([
+      ["property_in_other_agreement", "warning", "הרצל 12 / 5, רמת גן (#3001)"],
+      ["property_other_owner", "warning", "הרצל 12 / 5, רמת גן: יוסי כהן"],
+      ["property_unmatched", "warning", "רחוב שלא קיים 1"],
+    ]);
+    // The owner's own renewal, after the old agreement ends, raises neither.
+    const renewal = await api.checkNewAgreement({ customerId: "c3", ...terms, propertyIds: ["p3"], startDate: "2027-06-01" });
+    expect(renewal).toEqual([]);
+  });
+
+  it("warns that a new customer looks like an existing one", async () => {
+    const checks = await api.checkAgreementImport({ customer: { ...owner, phone: "+972521234567" }, agreement: terms });
+    expect(checks.map((c) => c.code)).toContain("duplicate_customer");
+  });
+
+  it("describes an agreement's record for checking its document", async () => {
+    expect(await api.getAgreementRecord("ag2")).toMatchObject({ name: "גלבוע השקעות בע״מ", feeMinor: 450000, feePercent: undefined, properties: ["דרך מנחם בגין 132 / 1804, תל אביב", "קריית המלאכה, ראש העין"] });
+  });
+
+  it("matches by block and parcel first, and by address between units on the same lot", async () => {
+    db.properties.find((p) => p.id === "p12")!.block = "5000";
+    db.properties.find((p) => p.id === "p12")!.parcel = "9";
+    db.properties.find((p) => p.id === "p13")!.block = "5000";
+    db.properties.find((p) => p.id === "p13")!.parcel = "9";
+    const found = await api.matchProperties(["כתובת אחרת לגמרי (גוש 6123, חלקה 45)", "המלאכה 8 / 301, ראש העין (גוש 5000, חלקה 9)"]);
+    expect(found.map((f) => f.property?.id)).toEqual(["p1", "p13"]);
+  });
+
+  it("matches property addresses from a document to properties in the system", async () => {
+    const found = await api.matchProperties(["הרצל 12/5, רמת גן", "המלאכה 8 / 201 ראש העין", "רחוב שלא קיים 1, אילת"]);
+    expect(found.map((f) => f.property?.id)).toEqual(["p1", "p12", undefined]);
+  });
+});
+
 describe("search", () => {
   it("finds professionals by name and customers by phone", async () => {
     expect((await api.search("מעליות")).map((r) => [r.kind, r.id])).toContainEqual(["professional", "pr4"]);

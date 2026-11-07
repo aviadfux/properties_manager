@@ -8,6 +8,7 @@ import type {
   IssueEvent,
   FormTemplate,
   Lease,
+  ManagementAgreement,
   OutgoingMessage,
   Ownership,
   PaymentRequest,
@@ -32,6 +33,8 @@ const at = (days: number, hour = 10) => {
 // Organization settings used by forms and messages (the real values come from the organization's settings).
 export const organization = {
   name: "עוגן ניהול נכסים",
+  taxId: "515999990",
+  representative: "עו״ד רון אלון", // signs documents and is appointed in powers of attorney
   phone: "+97235550100",
   email: "office@example.com",
   address: "רחוב הדוגמה 1, תל אביב",
@@ -44,10 +47,10 @@ export const users: User[] = [
 ];
 
 export const customers: Customer[] = [
-  { id: "c1", number: 101, kind: "individual", name: "יוסי כהן", phone: "+972521234567", email: "yossi@example.com", preferredLanguage: "he", preferredChannel: "whatsapp", status: "active" },
-  { id: "c2", number: 102, kind: "individual", name: "מירב אברהם", phone: "+972542345678", email: "merav@example.com", preferredLanguage: "he", preferredChannel: "email", status: "active" },
-  { id: "c3", number: 103, kind: "company", name: "גלבוע השקעות בע״מ", taxId: "515123456", phone: "+97236123456", email: "office@gilboa.example.com", billingAddress: "דרך מנחם בגין 132, תל אביב", preferredLanguage: "he", preferredChannel: "email", status: "active" },
-  { id: "c4", number: 104, kind: "individual", name: "David Miller", phone: "+972503456789", email: "david@example.com", preferredLanguage: "en", preferredChannel: "whatsapp", status: "active", notes: "Lives abroad — prefers English and WhatsApp." },
+  { id: "c1", number: 101, kind: "individual", name: "יוסי כהן", taxId: "034827139", phone: "+972521234567", email: "yossi@example.com", billingAddress: "הגפן 3, רמת גן", preferredLanguage: "he", preferredChannel: "whatsapp", status: "active" },
+  { id: "c2", number: 102, kind: "individual", name: "מירב אברהם", taxId: "058173642", phone: "+972542345678", email: "merav@example.com", preferredLanguage: "he", preferredChannel: "email", status: "active" },
+  { id: "c3", number: 103, kind: "company", name: "גלבוע השקעות בע״מ", taxId: "515123453", phone: "+97236123456", email: "office@gilboa.example.com", billingAddress: "דרך מנחם בגין 132, תל אביב", preferredLanguage: "he", preferredChannel: "email", status: "active" },
+  { id: "c4", number: 104, kind: "individual", name: "David Miller", taxId: "324567817", phone: "+972503456789", email: "david@example.com", billingAddress: "12 Rothschild Blvd, Tel Aviv", preferredLanguage: "en", preferredChannel: "whatsapp", status: "active", notes: "Lives abroad — prefers English and WhatsApp." },
   { id: "c5", number: 105, kind: "individual", name: "רונית שפירא", phone: "+972524567890", preferredLanguage: "he", preferredChannel: "phone", status: "active" },
   { id: "c6", number: 106, kind: "individual", name: "אבי ורחל פרץ", phone: "+972585678901", email: "peretz@example.com", preferredLanguage: "he", preferredChannel: "whatsapp", status: "active" },
 ];
@@ -55,15 +58,15 @@ export const customers: Customer[] = [
 // A complex with a building and units inside it: p16 (complex) ⊃ p8 (warehouse) + p11 (building) ⊃ p12–p15.
 
 export const properties: Property[] = [
-  { id: "p1", number: 1, kind: "apartment", address: "הרצל 12", city: "רמת גן", unit: "5", floor: 2, areaSqm: 78, rooms: 3.5 },
-  { id: "p2", number: 2, kind: "apartment", address: "בן יהודה 40", city: "תל אביב", unit: "12", floor: 4, areaSqm: 64, rooms: 2.5 },
+  { id: "p1", number: 1, kind: "apartment", address: "הרצל 12", city: "רמת גן", unit: "5", floor: 2, areaSqm: 78, rooms: 3.5, block: "6123", parcel: "45" },
+  { id: "p2", number: 2, kind: "apartment", address: "בן יהודה 40", city: "תל אביב", unit: "12", floor: 4, areaSqm: 64, rooms: 2.5, block: "6906", parcel: "30" },
   { id: "p3", number: 3, kind: "office", address: "דרך מנחם בגין 132", city: "תל אביב", unit: "1804", floor: 18, areaSqm: 140 },
   { id: "p4", number: 4, kind: "shop", address: "סוקולוב 55", city: "הרצליה", areaSqm: 52 },
   { id: "p5", number: 5, kind: "apartment", address: "כצנלסון 8", city: "גבעתיים", unit: "3", floor: 1, areaSqm: 95, rooms: 4 },
   { id: "p6", number: 6, kind: "apartment", address: "ז׳בוטינסקי 101", city: "פתח תקווה", unit: "22", floor: 7, areaSqm: 110, rooms: 5 },
   { id: "p7", number: 7, kind: "apartment", address: "סוקולוב 20", city: "חולון", unit: "9", floor: 3, areaSqm: 70, rooms: 3 },
   { id: "p8", number: 8, kind: "commercial", parentId: "p16", address: "המלאכה 6", city: "ראש העין", areaSqm: 320, notes: "מחסן ומשרדים" },
-  { id: "p9", number: 9, kind: "apartment", address: "ביאליק 17", city: "רמת גן", unit: "2", floor: 0, areaSqm: 58, rooms: 2 },
+  { id: "p9", number: 9, kind: "apartment", address: "ביאליק 17", city: "רמת גן", unit: "2", floor: 0, areaSqm: 58, rooms: 2, block: "6124", parcel: "112" },
   { id: "p10", number: 10, kind: "apartment", address: "ויצמן 31", city: "כפר סבא", unit: "14", floor: 5, areaSqm: 102, rooms: 4.5 },
   { id: "p16", number: 16, kind: "complex", address: "קריית המלאכה", city: "ראש העין", areaSqm: 2400, notes: "מתחם מסחרי: מבנה משרדים ומחסן" },
   { id: "p11", number: 11, kind: "building", parentId: "p16", address: "המלאכה 8", city: "ראש העין", areaSqm: 900, notes: "מבנה משרדים, 3 קומות, מעלית" },
@@ -94,7 +97,7 @@ export const ownerships: Ownership[] = [
 export const tenants: Tenant[] = [
   { id: "t1", number: 501, kind: "individual", name: "נועה ברק", phone: "+972521112233", email: "noa@example.com", preferredLanguage: "he" },
   { id: "t2", number: 502, kind: "individual", name: "עומר גולן", phone: "+972542223344", preferredLanguage: "he" },
-  { id: "t3", number: 503, kind: "company", name: "טקנובה בע״מ", taxId: "514998877", phone: "+97237778899", email: "admin@technova.example.com", preferredLanguage: "he" },
+  { id: "t3", number: 503, kind: "company", name: "טקנובה בע״מ", taxId: "514998871", phone: "+97237778899", email: "admin@technova.example.com", preferredLanguage: "he" },
   { id: "t4", number: 504, kind: "company", name: "קפה סוקולוב", phone: "+972549990011", preferredLanguage: "he" },
   { id: "t5", number: 505, kind: "individual", name: "Sarah Cohen", phone: "+972503334455", email: "sarah@example.com", preferredLanguage: "en" },
   { id: "t6", number: 506, kind: "individual", name: "יעל ומשה דהן", phone: "+972525556677", preferredLanguage: "he" },
@@ -193,6 +196,17 @@ export const paymentsToVerify: PaymentToVerify[] = [
   { id: "pv1", customerId: "c2", amountMinor: 450000, reportedAt: at(-1, 18), method: "bank_transfer" },
 ];
 
+// --- Management agreements ---
+
+export const agreements: ManagementAgreement[] = [
+  { id: "ag1", number: 3001, customerId: "c1", propertyIds: ["p1", "p9"], startDate: "2023-03-01", feeModel: "percent_with_minimum", feePercent: 8.5, feeMinor: 40000, plusVat: true, billingFrequency: "quarterly", approvalThresholdMinor: 150000, language: "he", source: "generated", signedAt: "2023-02-20", createdAt: "2023-02-15T09:00:00Z" },
+  // Ends soon: due for renewal.
+  { id: "ag2", number: 3002, customerId: "c3", propertyIds: ["p3", "p16"], startDate: "2024-01-01", endDate: date(56), feeModel: "fixed", feeMinor: 450000, approvalThresholdMinor: 500000, language: "he", source: "generated", signedAt: "2023-12-20", createdAt: "2023-12-10T09:00:00Z" },
+  { id: "ag3", number: 3003, customerId: "c4", propertyIds: ["p4", "p10"], startDate: "2025-05-01", endDate: "2027-04-30", feeModel: "percent_of_rent", feePercent: 7, approvalThresholdMinor: 200000, language: "en", source: "imported", fileName: "management-agreement-2025.docx", signedAt: "2025-04-20", createdAt: "2025-04-21T09:00:00Z" },
+  // A draft waiting for signature.
+  { id: "ag4", number: 3004, customerId: "c2", propertyIds: ["p2"], startDate: date(10), feeModel: "fixed", feeMinor: 62000, plusVat: true, language: "he", source: "generated", createdAt: at(-1, 11) },
+];
+
 // --- Form and message templates ---
 // Placeholders are listed per record type in src/data/templates.ts.
 
@@ -264,6 +278,275 @@ Keys handed over: ______  Remotes: ______
 
 ---
 Tenant signature: ______________      Company representative: ______________`,
+    },
+  },
+  {
+    // The agreement itself. The parties are written as "between … and …" blocks, as in real agreements;
+    // the appendix repeats every detail on labeled lines, so a generated copy always imports back exactly
+    // (src/data/agreements.ts) and is checked against the record when it is generated (src/data/checks.ts).
+    id: "ft2",
+    name: "הסכם ניהול נכסים",
+    context: "agreement",
+    kind: "document",
+    importable: true,
+    updatedAt: at(-10, 12),
+    body: {
+      he: `# הסכם ניהול נכסים
+מס׳ הסכם: {{agreement.number}} · נערך ונחתם ביום {{today}}
+
+בין
+{{company.name}}, ח.פ. {{company.taxId}}
+מרח׳ {{company.address}}
+(להלן: "חברת הניהול") מצד אחד
+
+לבין
+{{customer.name}}, ת.ז. / ח.פ. {{customer.taxId}}
+מרח׳ {{customer.billingAddress}}
+טל׳: {{customer.phone}}
+דוא״ל: {{customer.email}}
+(להלן, ביחד ולחוד: "המזמין") מצד שני
+
+הואיל והמזמין הוא בעל הזכויות בנכסים המפורטים בנספח א׳ (להלן: "הנכסים");
+והואיל והמזמין מעוניין שחברת הניהול תנהל את הנכסים עבורו, וחברת הניהול מסכימה לכך, כמפורט בהסכם זה;
+לפיכך הוסכם בין הצדדים כדלקמן:
+
+## 1. מבוא
+- המבוא והנספחים הם חלק בלתי נפרד מההסכם. כותרות הסעיפים נועדו לנוחות בלבד.
+
+## 2. הצהרות הצדדים
+- המזמין מצהיר שהוא בעל הזכויות בנכסים ומתחייב לשתף פעולה עם חברת הניהול ככל הנדרש לניהולם.
+- ידוע למזמין שחלק מהעבודות ייעשו בידי בעלי מקצוע חיצוניים, על חשבונו ובאישורו מראש.
+- חברת הניהול מצהירה שיש לה הידע וכוח האדם הנדרשים, ומתחייבת לפעול במסירות ובמקצועיות לשמירה על זכויות המזמין.
+
+## 3. המינוי
+- המזמין ממנה את חברת הניהול למנהלת הבלעדית של הנכסים בתקופת ההסכם, ומייפה את כוחה לגבות בשמו דמי שכירות ותשלומים אחרים, להשכיר את הנכסים ולפעול לביצוע ההסכם.
+
+## 4. תקופת ההסכם
+- ההסכם לתקופה של 12 חודשים לפחות מיום תחילתו, ולא יסתיים לפני תום תקופת השכירות של השוכר בנכס.
+- בתום התקופה ההסכם מתחדש מאליו בכל פעם לשנה נוספת, אלא אם צד הודיע בכתב, 3 חודשים מראש לפחות, שאינו מעוניין לחדשו.
+- חברת הניהול רשאית לסיים את ההסכם מיד אם המזמין לא שילם סכום שהוא חייב בו בתוך 14 יום מדרישה בכתב, או הפר את ההסכם ולא תיקן את ההפרה בתוך 14 יום.
+
+## 5. שירותי הניהול
+- איתור שוכרים ובדיקתם, ובדיקת הערבים מטעמם.
+- עריכת הסכמי שכירות, ופרוטוקול כניסה ויציאה המתעד את מצב הנכס.
+- גביית דמי שכירות, ועד בית וביטחונות, מעקב אחר קיום הסכמי השכירות ומענה שוטף לשוכרים.
+- עדכון הרשויות (עירייה, חשמל, מים) על חילופי מחזיקים.
+- טיפול בליקויים בידי בעלי מקצוע, באישור המזמין מראש; המזמין רשאי לבחור בעלי מקצוע מטעמו. עבודה שעלותה למזמין עולה על סף האישור שבנספח א׳ תבוצע רק בהסכמתו.
+- ייצוג משפטי אינו כלול בשירותי הניהול, וייעשה, אם יידרש, בהסכם נפרד.
+
+## 6. דמי ניהול
+- המזמין ישלם לחברת הניהול דמי ניהול כמפורט בנספח א׳. דמי הניהול כוללים את כל התמורה לחברת הניהול עבור שירותי הניהול.
+- הוצאות לבעלי מקצוע ישולמו בידי המזמין ישירות לבעל המקצוע, לפי הצעת מחיר שאושרה מראש.
+- דיווח לרשויות המס אינו כלול בדמי הניהול והוא באחריות המזמין.
+
+## 7. כללי
+- היחסים בין הצדדים הם יחסי מזמין וקבלן עצמאי, ולא יחסי עובד ומעביד.
+- חברת הניהול לא תמחה את זכויותיה לפי ההסכם בלי הסכמת המזמין בכתב מראש.
+- כל שינוי בהסכם ייעשה בכתב בלבד. הודעות יישלחו לכתובות הצדדים שבמבוא.
+- פרטיו האישיים של המזמין ישמשו רק לביצוע ההסכם ויישמרו בהתאם לחוק הגנת הפרטיות.
+
+## נספח א׳ – פרטי ההסכם
+### הבעלים
+שם: {{customer.name}}
+ת.ז. / ח.פ.: {{customer.taxId}}
+טלפון: {{customer.phone}}
+דוא״ל: {{customer.email}}
+כתובת: {{customer.billingAddress}}
+### הנכסים המנוהלים
+{{agreement.properties}}
+### תנאים
+תקופת ההסכם: {{agreement.start}} – {{agreement.end}}
+דמי ניהול: {{agreement.fee}}
+מועד החיוב: {{agreement.billing}}
+סף לאישור הבעלים: {{agreement.approvalThreshold}}
+
+---
+המזמין: ______________      חברת הניהול: ______________`,
+      en: `# Property Management Agreement
+Agreement no.: {{agreement.number}} · Made and signed on {{today}}
+
+Between
+{{company.name}}, company no. {{company.taxId}}
+of {{company.address}}
+(hereinafter: "the Management Company") of the one part
+
+And
+{{customer.name}}, ID / company no. {{customer.taxId}}
+of {{customer.billingAddress}}
+Tel.: {{customer.phone}}
+Email: {{customer.email}}
+(hereinafter, jointly and severally: "the Owner") of the other part
+
+Whereas the Owner holds the rights in the properties listed in Appendix A (the "Properties");
+And whereas the Owner wishes the Management Company to manage the Properties on the Owner's behalf, and the Management Company agrees, as set out in this agreement;
+Now therefore the parties agree as follows:
+
+## 1. Preamble
+- The preamble and the appendices form an integral part of this agreement. Headings are for convenience only.
+
+## 2. Declarations
+- The Owner declares that the Owner holds the rights in the Properties and will cooperate with the Management Company as needed to manage them.
+- The Owner knows that some work will be done by outside professionals, at the Owner's expense and with the Owner's prior approval.
+- The Management Company declares that it has the knowledge and staff required, and will act diligently and professionally to protect the Owner's rights.
+
+## 3. Appointment
+- The Owner appoints the Management Company as the sole manager of the Properties for the term of this agreement, and authorizes it to collect rent and other payments on the Owner's behalf, to let the Properties, and to act to carry out this agreement.
+
+## 4. Term
+- This agreement is for at least 12 months from its start, and does not end before the current tenant's lease ends.
+- At the end of the term it renews automatically for one more year each time, unless a party gives written notice at least 3 months in advance that it does not wish to renew.
+- The Management Company may end this agreement at once if the Owner does not pay an amount due within 14 days of a written demand, or breaches this agreement and does not remedy the breach within 14 days.
+
+## 5. Management services
+- Finding and checking tenants, and checking their guarantors.
+- Drawing up leases, and move-in and move-out reports recording the condition of the property.
+- Collecting rent, building fees and securities, monitoring compliance with the leases, and ongoing contact with tenants.
+- Notifying the authorities (municipality, electricity, water) of changes of occupant.
+- Handling defects through professionals, with the Owner's prior approval; the Owner may choose professionals of the Owner's own. Work costing the Owner more than the approval threshold in Appendix A is done only with the Owner's consent.
+- Legal representation is not included in the management services and, if needed, is agreed separately.
+
+## 6. Management fee
+- The Owner pays the Management Company the management fee set out in Appendix A. The fee is the entire consideration for the management services.
+- Costs of professionals are paid by the Owner directly to the professional, under a quote approved in advance.
+- Reporting to the tax authorities is not included in the fee and is the Owner's responsibility.
+
+## 7. General
+- The parties are client and independent contractor; there is no employer–employee relationship.
+- The Management Company will not assign its rights under this agreement without the Owner's prior written consent.
+- Any change to this agreement must be in writing. Notices are sent to the addresses in the preamble.
+- The Owner's personal details are used only to carry out this agreement and are kept in line with privacy law.
+
+## Appendix A – Agreement details
+### The owner
+Name: {{customer.name}}
+ID / company no.: {{customer.taxId}}
+Phone: {{customer.phone}}
+Email: {{customer.email}}
+Address: {{customer.billingAddress}}
+### Managed properties
+{{agreement.properties}}
+### Terms
+Term: {{agreement.start}} – {{agreement.end}}
+Management fee: {{agreement.fee}}
+Billing: {{agreement.billing}}
+Owner approval threshold: {{agreement.approvalThreshold}}
+
+---
+The Owner: ______________      The Management Company: ______________`,
+    },
+  },
+  {
+    // Signed by every owner of the property; appoints the company's representative to act for them.
+    id: "ft3",
+    name: "ייפוי כוח לניהול נכס",
+    context: "agreement",
+    kind: "document",
+    updatedAt: at(-10, 12),
+    body: {
+      he: `# ייפוי כוח
+אנו הח״מ:
+{{agreement.owners}}
+ממנים בזה את {{company.representative}} מטעם {{company.name}} להיות באי כוחנו, ולעשות בשמנו ובמקומנו את כל הפעולות הבאות, או חלק מהן, בנוגע לנכס ב{{property.fullAddress}}, הידוע כגוש {{property.block}} חלקה {{property.parcel}} (להלן: "הנכס"):
+
+- לנהל את הנכס ולהשכירו, כולו או חלקו, ובכלל זה לערוך ולבטל חוזים מכל סוג עם רשויות, תאגידים ויחידים.
+- לייצג אותנו בפני רשויות המדינה, רשויות מקומיות, תאגידים ויחידים בכל עניין הנוגע לנכס.
+- לחתום בשמנו על כל מסמך הקשור לניהול הנכס, לרבות הסכמי שכירות.
+- לגבות תשלומים, חובות והחזרים בשמנו ועבורנו, ולבצע תשלומים בשמנו.
+
+ולראיה באנו על החתום היום {{today}}.
+
+---
+חתימות הבעלים: ______________      ______________
+
+אני, ______________, עו״ד, מאשר/ת את חתימת מרשיי הנ״ל.
+תאריך: ______________      חתימה וחותמת: ______________`,
+      en: `# Power of Attorney
+We, the undersigned:
+{{agreement.owners}}
+hereby appoint {{company.representative}} of {{company.name}} as our attorney, to do in our name and in our place all or any of the following in relation to the property at {{property.fullAddress}}, known as block {{property.block}} parcel {{property.parcel}} (the "Property"):
+
+- To manage and let the Property, in whole or in part, including making and cancelling contracts of any kind with authorities, corporations and individuals.
+- To represent us before state and local authorities, corporations and individuals in any matter concerning the Property.
+- To sign in our name any document related to managing the Property, including leases.
+- To collect payments, debts and refunds in our name and for us, and to make payments in our name.
+
+In witness whereof we have signed on {{today}}.
+
+---
+Owners' signatures: ______________      ______________
+
+I, ______________, Advocate, confirm the signatures of my clients above.
+Date: ______________      Signature and stamp: ______________`,
+    },
+  },
+  {
+    // Sent to a prospective client before the agreement; made from a draft agreement's terms.
+    id: "ft4",
+    name: "הצעת מחיר לשירותי ניהול",
+    context: "agreement",
+    kind: "document",
+    updatedAt: at(-10, 12),
+    body: {
+      he: `{{today}}
+לכבוד {{customer.name}} (להלן: "המזמין")
+
+# הצעת מחיר לשירותי ניהול
+הנדון: {{property.kind}} ב{{property.city}}
+
+תודה על פנייתכם. להלן הצעתנו לניהול הנכס.
+
+## שירותי הניהול
+- סקר שוק לקביעת דמי שכירות מתאימים באזור הנכס.
+- איתור שוכרים ובדיקתם.
+- עריכת הסכם שכירות מקצועי, בליווי עורך דין.
+- גביית ביטחונות מתאימים.
+- פרוטוקול כניסה ויציאה המתעד את מצב הנכס.
+- גביית דמי השכירות ומעקב אחר קיום הסכם השכירות.
+- קשר שוטף עם השוכרים ומענה זמין עבורם.
+- העברת חשבונות העירייה, החשמל, המים והגז על שם השוכר.
+- טיפול בליקויים בידי בעלי מקצוע, באישורכם מראש.
+- מכתבי התראה על הפרות השוכר, וטיפול מולו בידי עורך דין החברה.
+
+השירות ניתן בשיתוף פעולה מלא איתכם.
+
+## התמורה
+דמי ניהול: {{agreement.fee}}, לאורך כל תקופת הסכם השכירות. החיוב {{agreement.billing}}.
+
+נשמח לעמוד לרשותכם.
+
+בברכה,
+{{company.representative}}
+{{company.name}} · {{company.phone}} · {{company.email}}`,
+      en: `{{today}}
+To {{customer.name}} (the "Client")
+
+# Quote for Property Management Services
+Re: {{property.kind}} in {{property.city}}
+
+Thank you for contacting us. Here is our proposal for managing the property.
+
+## Management services
+- A market survey to set a suitable rent for the area.
+- Finding and checking tenants.
+- A professional lease, prepared with a lawyer.
+- Collecting suitable securities.
+- Move-in and move-out reports recording the condition of the property.
+- Collecting rent and monitoring compliance with the lease.
+- Ongoing contact with tenants and an available point of contact.
+- Transferring municipal, electricity, water and gas accounts to the tenant's name.
+- Handling defects through professionals, with your prior approval.
+- Warning letters for tenant breaches, handled by the company's lawyer.
+
+The service is provided in full cooperation with you.
+
+## Fee
+Management fee: {{agreement.fee}}, for the whole term of the lease, billed {{agreement.billing}}.
+
+We would be glad to help.
+
+Kind regards,
+{{company.representative}}
+{{company.name}} · {{company.phone}} · {{company.email}}`,
     },
   },
   {

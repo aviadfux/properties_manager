@@ -2,6 +2,7 @@
 // so that screens built on it do not hide bugs that real data would show.
 import { describe, expect, it } from "vitest";
 import { PROPERTY_KINDS } from "@/domain/types";
+import { isValidIsraeliId } from "@/security/sensitive";
 import { TODAY } from "@/test/utils";
 import * as db from "./sample";
 
@@ -9,10 +10,10 @@ const ids = <T extends { id: string }>(rows: T[]) => new Set(rows.map((r) => r.i
 
 describe("sample data", () => {
   it("has unique ids and numbers per entity", () => {
-    for (const rows of [db.customers, db.properties, db.tenants, db.issues, db.professionals, db.leases, db.ownerships, db.paymentRequests]) {
+    for (const rows of [db.customers, db.properties, db.tenants, db.issues, db.professionals, db.leases, db.ownerships, db.paymentRequests, db.agreements]) {
       expect(ids(rows as { id: string }[]).size).toBe(rows.length);
     }
-    for (const rows of [db.customers, db.properties, db.tenants, db.issues, db.professionals, db.paymentRequests]) {
+    for (const rows of [db.customers, db.properties, db.tenants, db.issues, db.professionals, db.paymentRequests, db.agreements]) {
       expect(new Set(rows.map((r) => r.number)).size).toBe(rows.length);
     }
   });
@@ -80,6 +81,27 @@ describe("sample data", () => {
       const done = i.status === "closed" || i.status === "cancelled";
       expect(Boolean(i.closedAt), `#${i.number}`).toBe(done);
       if (i.status === "closed") expect(i.resolution && i.actualCostMinor !== undefined, `#${i.number}`).toBeTruthy();
+    }
+  });
+
+  // The repository is public: sample data must be invented (docs/SECURITY.md §5).
+  it("uses only reserved example addresses for email", () => {
+    const emails = [db.organization.email, ...[...db.customers, ...db.tenants, ...db.professionals, ...db.users].flatMap((p) => p.email ?? [])];
+    for (const email of emails) expect(email).toMatch(/@(?:[\w-]+\.)*example\.com$/);
+  });
+
+  it("has valid ID and company numbers (check digit)", () => {
+    for (const p of [...db.customers, ...db.tenants]) if (p.taxId) expect(isValidIsraeliId(p.taxId), p.name).toBe(true);
+  });
+
+  it("has agreements with existing customers and properties, and one fee each", () => {
+    const [customers, properties] = [ids(db.customers), ids(db.properties)];
+    for (const a of db.agreements) {
+      expect(customers.has(a.customerId), a.id).toBe(true);
+      for (const p of a.propertyIds) expect(properties.has(p), a.id).toBe(true);
+      expect(a.feePercent !== undefined, a.id).toBe(a.feeModel !== "fixed");
+      expect(a.feeMinor !== undefined, a.id).toBe(a.feeModel !== "percent_of_rent");
+      if (a.endDate) expect(a.endDate > a.startDate, a.id).toBe(true);
     }
   });
 

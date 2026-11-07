@@ -13,6 +13,7 @@ import type {
   IssueEvent,
   IssueStatus,
   Lease,
+  ManagementAgreement,
   OutgoingMessage,
   Ownership,
   PaymentRequest,
@@ -27,6 +28,8 @@ import type {
 import { isOpen } from "@/domain/types";
 import { dictionaries, formatters, type Locale } from "@/i18n";
 import * as db from "./sample";
+import { normalizePhone, parseRegistry } from "./agreements";
+import { checkCustomer, checkTerms, hasErrors, type AgreementRecord, type Check, type CustomerFields } from "./checks";
 import { render } from "./templates";
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -45,6 +48,8 @@ function find<T extends { id: ID }>(rows: T[], id: ID): T {
 }
 
 export const propertyLabel = (p: Property) => `${p.address}${p.unit ? ` / ${p.unit}` : ""}`;
+const fullAddress = (p: Property) => `${propertyLabel(p)}, ${p.city}`;
+const numericDate = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
 
 // ---------- property hierarchy ----------
 // A property may be part of another (unit → building → complex). Only `parentId` is stored;
@@ -532,6 +537,7 @@ export function listFormRecords(context: FormContext): Promise<{ id: ID; label: 
     tenant: () => db.tenants.map((t) => ({ id: t.id, label: t.name })),
     issue: () => db.issues.map((i) => ({ id: i.id, label: `#${i.number} ${i.title}` })).sort((a, b) => b.label.localeCompare(a.label)),
     payment_request: () => db.paymentRequests.map((r) => ({ id: r.id, label: `#${r.number} · ${find(db.customers, r.customerId).name}` })),
+    agreement: () => db.agreements.map((a) => ({ id: a.id, label: `#${a.number} · ${find(db.customers, a.customerId).name}` })).sort((a, b) => b.label.localeCompare(a.label)),
   };
   return delay(rows[context]());
 }
@@ -542,6 +548,8 @@ function formValues(context: FormContext, recordId: ID, locale: Locale): Record<
   const fmt = formatters(locale);
   const company = {
     "company.name": db.organization.name,
+    "company.taxId": db.organization.taxId,
+    "company.representative": db.organization.representative,
     "company.phone": fmt.phone(db.organization.phone),
     "company.email": db.organization.email,
     "company.address": db.organization.address,
@@ -551,7 +559,7 @@ function formValues(context: FormContext, recordId: ID, locale: Locale): Record<
   const property = (p: Property) => {
     const owner = managingCustomer(p.id);
     return {
-      "property.fullAddress": `${propertyLabel(p)}, ${p.city}`,
+      "property.fullAddress": fullAddress(p),
       "property.address": p.address,
       "property.city": p.city,
       "property.unit": p.unit,
@@ -561,6 +569,8 @@ function formValues(context: FormContext, recordId: ID, locale: Locale): Record<
       "property.rooms": p.rooms?.toString(),
       "property.number": String(p.number),
       "property.partOf": ancestors(p).map(propertyLabel).join(" › ") || undefined,
+      "property.block": p.block,
+      "property.parcel": p.parcel,
       "owner.name": owner?.name,
       "owner.phone": owner && fmt.phone(owner.phone),
       "owner.email": owner?.email,
@@ -578,6 +588,28 @@ function formValues(context: FormContext, recordId: ID, locale: Locale): Record<
   const tenant = (tn: Tenant) => ({ "tenant.name": tn.name, "tenant.phone": fmt.phone(tn.phone), "tenant.email": tn.email, "tenant.taxId": tn.taxId });
 
   switch (context) {
+    case "agreement": {
+      const a = find(db.agreements, recordId);
+      return {
+        ...company,
+        ...customer(find(db.customers, a.customerId)),
+        "agreement.number": String(a.number),
+        // Contracts use numeric dates (31/12/2026), which also read back unambiguously on import.
+        "agreement.start": numericDate(a.startDate),
+        "agreement.end": a.endDate ? numericDate(a.endDate) : t.agreements.noEnd,
+        "agreement.fee": describeFee(a, locale),
+        "agreement.billing": t.agreements.billings[a.billingFrequency ?? "monthly"],
+        "agreement.approvalThreshold": a.approvalThresholdMinor === undefined ? undefined : fmt.money(a.approvalThresholdMinor),
+        // One "- address" line per property: a bulleted list in the document.
+        "agreement.properties": a.propertyIds.map((id) => `- ${propertyLine(find(db.properties, id), locale)}`).join("\n") || undefined,
+        // The owners who sign: the customer and the other current owners of the main property.
+        "agreement.owners": agreementOwners(a)
+          .map((c) => `- ${c.name}${c.taxId ? `, ${locale === "he" ? "ת.ז. / ח.פ." : "ID / company no."} ${c.taxId}` : ""}`)
+          .join("\n"),
+        // The main (first) property, for documents about one property (a power of attorney, a quote).
+        ...(a.propertyIds[0] ? property(find(db.properties, a.propertyIds[0])) : {}),
+      };
+    }
     case "lease": {
       const l = find(db.leases, recordId);
       return {
@@ -629,6 +661,291 @@ function formValues(context: FormContext, recordId: ID, locale: Locale): Record<
 
 export function getFormValues(context: FormContext, recordId: ID, locale: Locale): Promise<Record<string, string | undefined>> {
   return delay(formValues(context, recordId, locale));
+}
+
+// ---------- management agreements ----------
+
+/** The fee as written in the agreement: "8.5% of the rent or ₪400 per month, whichever is higher, plus VAT". */
+export function describeFee(a: Pick<ManagementAgreement, "feeModel" | "feeMinor" | "feePercent" | "plusVat">, locale: Locale): string {
+  const t = dictionaries[locale].agreements;
+  const money = formatters(locale).money;
+  const base =
+    a.feeModel === "fixed"
+      ? t.feeFixed(money(a.feeMinor ?? 0))
+      : a.feeModel === "percent_of_rent"
+        ? t.feePercent(a.feePercent ?? 0)
+        : t.feeHigher(a.feePercent ?? 0, money(a.feeMinor ?? 0));
+  return a.plusVat ? `${base}${t.plusVat}` : base;
+}
+
+/** One line per property in a document: the address, and the land registry block and parcel when known. */
+export function propertyLine(p: Property, locale: Locale): string {
+  const registry = p.block && p.parcel ? (locale === "he" ? ` (גוש ${p.block}, חלקה ${p.parcel})` : ` (block ${p.block}, parcel ${p.parcel})`) : "";
+  return `${fullAddress(p)}${registry}`;
+}
+// Export: an agreement is created from the customer's details and printed or downloaded through a
+// document template (context "agreement"). Import: the details read from an existing agreement
+// (src/data/agreements.ts) are checked by the manager and saved here as a customer and an agreement.
+
+/** The company's own details: printed on documents, and ignored when reading an owner's details from an agreement. */
+export function getOrganization(): Promise<typeof db.organization> {
+  return delay(db.organization);
+}
+
+export type AgreementStatus = "draft" | "upcoming" | "active" | "ended";
+
+export type AgreementRow = ManagementAgreement & { customer: Customer; properties: Property[]; status: AgreementStatus };
+
+function agreementStatus(a: ManagementAgreement): AgreementStatus {
+  if (!a.signedAt) return "draft";
+  if (a.endDate && a.endDate < today()) return "ended";
+  return a.startDate > today() ? "upcoming" : "active";
+}
+
+/** The customer, then the other current owners of the agreement's main property. */
+function agreementOwners(a: ManagementAgreement): Customer[] {
+  const customer = find(db.customers, a.customerId);
+  const others = a.propertyIds[0] ? effectiveOwnerships(a.propertyIds[0]).rows.map((o) => find(db.customers, o.customerId)) : [];
+  return [customer, ...others.filter((c) => c.id !== customer.id)];
+}
+
+const toAgreementRow = (a: ManagementAgreement): AgreementRow => ({
+  ...a,
+  customer: find(db.customers, a.customerId),
+  properties: a.propertyIds.map((id) => find(db.properties, id)),
+  status: agreementStatus(a),
+});
+
+export function listAgreements(filter: { customerId?: ID } = {}): Promise<AgreementRow[]> {
+  return delay(
+    db.agreements
+      .filter((a) => !filter.customerId || a.customerId === filter.customerId)
+      .map(toAgreementRow)
+      .sort((a, b) => b.startDate.localeCompare(a.startDate)),
+  );
+}
+
+export function getAgreement(id: ID): Promise<AgreementRow> {
+  return delay(toAgreementRow(find(db.agreements, id)));
+}
+
+export type AgreementInput = Omit<ManagementAgreement, "id" | "number" | "createdAt">;
+
+/** Raised when an agreement fails its checks; `checks` says why, so screens can explain it. */
+export class CheckError extends Error {
+  constructor(readonly checks: Check[]) {
+    super(`Cannot be saved: ${checks.filter((c) => c.level === "error").map((c) => c.code).join(", ")}`);
+  }
+}
+
+const overlaps = (a: { startDate: string; endDate?: string }, b: { startDate: string; endDate?: string }) =>
+  a.startDate <= (b.endDate ?? "9999") && b.startDate <= (a.endDate ?? "9999");
+
+/**
+ * Everything worth knowing before an agreement is saved: the shared rules (checks.ts) plus what only
+ * the data can tell — the same agreement saved twice, a property already under another agreement
+ * for the same period, a property the system records as someone else's.
+ */
+function agreementChecks(a: AgreementInput, customer?: { fields: CustomerFields; isNew: boolean }): Check[] {
+  const checks = [...(customer ? checkCustomer(customer.fields) : []), ...checkTerms(a)];
+  if (!a.propertyIds.length) checks.push({ code: "no_properties", level: "warning" });
+  const sameSet = (ids: ID[]) => [...ids].sort().join() === [...a.propertyIds].sort().join();
+  if (db.agreements.some((x) => x.customerId === a.customerId && x.startDate === a.startDate && sameSet(x.propertyIds)))
+    checks.push({ code: "duplicate_agreement", level: "error" });
+  for (const id of new Set(a.propertyIds)) {
+    const p = find(db.properties, id);
+    const other = db.agreements.find((x) => x.propertyIds.includes(id) && (customer?.isNew || x.customerId !== a.customerId) && agreementStatus(x) !== "ended" && overlaps(x, a));
+    if (other) checks.push({ code: "property_in_other_agreement", level: "warning", detail: `${fullAddress(p)} (#${other.number})` });
+    const owners = effectiveOwnerships(id).rows;
+    if (owners.length && (customer?.isNew || !owners.some((o) => o.customerId === a.customerId)))
+      checks.push({ code: "property_other_owner", level: "warning", detail: `${fullAddress(p)}: ${owners.map((o) => find(db.customers, o.customerId).name).join(", ")}` });
+  }
+  return checks;
+}
+
+function knownRecords(a: AgreementInput, { newCustomer = false } = {}) {
+  if (!newCustomer && !db.customers.some((c) => c.id === a.customerId)) return "Unknown customer";
+  if (a.propertyIds.some((id) => !db.properties.some((p) => p.id === id))) return "Unknown property";
+  return undefined;
+}
+
+function addAgreement(input: AgreementInput): ManagementAgreement {
+  const agreement: ManagementAgreement = {
+    ...input,
+    // Only the fee of the chosen model is kept.
+    feeMinor: input.feeModel === "percent_of_rent" ? undefined : input.feeMinor,
+    feePercent: input.feeModel === "fixed" ? undefined : input.feePercent,
+    id: `ag${db.agreements.length + 1}-${Date.now()}`,
+    number: Math.max(3000, ...db.agreements.map((a) => a.number)) + 1,
+    createdAt: new Date().toISOString(),
+  };
+  db.agreements.push(agreement);
+  return agreement;
+}
+
+/** A new agreement from the customer's details, as a draft until it is signed. */
+export function createAgreement(input: Omit<AgreementInput, "source" | "fileName">): Promise<ManagementAgreement> {
+  const full: AgreementInput = { ...input, source: "generated" };
+  const unknown = knownRecords(full);
+  if (unknown) return Promise.reject(new Error(unknown));
+  const checks = agreementChecks(full);
+  if (hasErrors(checks)) return Promise.reject(new CheckError(checks));
+  return delay(addAgreement(full));
+}
+
+/** The checks for a new agreement, for the screen to show before saving. */
+export function checkNewAgreement(input: Omit<AgreementInput, "source" | "fileName">): Promise<Check[]> {
+  return delay(agreementChecks({ ...input, source: "generated" }));
+}
+
+/** What the agreement's document must state, for checking an export against its record (checks.ts). */
+export function getAgreementRecord(id: ID, locale?: Locale): Promise<AgreementRecord> {
+  const a = find(db.agreements, id);
+  const c = find(db.customers, a.customerId);
+  return delay({
+    name: c.name,
+    taxId: c.taxId,
+    phone: c.phone,
+    email: c.email,
+    billingAddress: c.billingAddress,
+    startDate: a.startDate,
+    endDate: a.endDate,
+    feeModel: a.feeModel,
+    feePercent: a.feeModel === "fixed" ? undefined : a.feePercent,
+    feeMinor: a.feeModel === "percent_of_rent" ? undefined : a.feeMinor,
+    plusVat: Boolean(a.plusVat),
+    billingFrequency: a.billingFrequency ?? "monthly",
+    approvalThresholdMinor: a.approvalThresholdMinor,
+    properties: a.propertyIds.map((pid) => propertyLine(find(db.properties, pid), locale ?? a.language)),
+  });
+}
+
+export function markAgreementSigned(id: ID, on = today()): Promise<void> {
+  find(db.agreements, id).signedAt = on;
+  return delay(undefined);
+}
+
+export type CustomerDetails = Pick<Customer, "kind" | "name" | "phone" | "preferredLanguage"> & Partial<Pick<Customer, "taxId" | "email" | "billingAddress">>;
+
+export type CustomerMatch = { customer: Customer; by: "taxId" | "email" | "phone" };
+
+const digitsOf = (s?: string) => s?.replace(/\D/g, "") ?? "";
+
+/** Existing customers that look like the same person or company (spec §2: possible-duplicate warning). */
+export function findCustomerMatches(d: Partial<CustomerDetails>): Promise<CustomerMatch[]> {
+  return delay(findMatches(d));
+}
+
+function findMatches(d: Partial<CustomerDetails>): CustomerMatch[] {
+  const matches: CustomerMatch[] = [];
+  for (const c of db.customers) {
+    if (d.taxId && digitsOf(c.taxId) && digitsOf(c.taxId) === digitsOf(d.taxId)) matches.push({ customer: c, by: "taxId" });
+    else if (d.email && c.email?.toLowerCase() === d.email.trim().toLowerCase()) matches.push({ customer: c, by: "email" });
+    else if (d.phone && digitsOf(c.phone).slice(-9) === digitsOf(d.phone).slice(-9) && digitsOf(d.phone).length >= 9) matches.push({ customer: c, by: "phone" });
+  }
+  const rank = { taxId: 0, email: 1, phone: 2 };
+  return matches.sort((a, b) => rank[a.by] - rank[b.by]);
+}
+
+const addressKey = (s: string) => s.replace(/[\s,./\\'"״׳()-]/g, "").toLowerCase();
+
+/** The properties in the system that an address from a document refers to. */
+export function matchProperties(addresses: string[]): Promise<{ text: string; property?: Property }[]> {
+  return delay(
+    addresses.map((text) => {
+      // The land registry block and parcel identify the property best; the address decides between
+      // units that share them (apartments in one building).
+      const registry = parseRegistry(text);
+      const address = text.replace(/\((?:גוש|block)[^)]*\)/i, "").trim();
+      const key = addressKey(address);
+      const onLot = registry ? db.properties.filter((p) => p.block === registry.block && p.parcel === registry.parcel) : [];
+      if (onLot.length === 1) return { text, property: onLot[0] };
+      const candidates = onLot.length ? onLot : db.properties;
+      const exact = candidates.find((p) => addressKey(fullAddress(p)) === key);
+      // Otherwise the most specific property whose address (with unit) appears in the text.
+      const partial = candidates
+        .filter((p) => key.includes(addressKey(propertyLabel(p))) && key.includes(addressKey(p.city)))
+        .sort((a, b) => propertyLabel(b).length - propertyLabel(a).length)[0];
+      return { text, property: exact ?? partial };
+    }),
+  );
+}
+
+export type ImportAgreementInput = {
+  customer: CustomerDetails;
+  existingCustomerId?: ID; // link to this customer instead of creating one
+  agreement: Omit<AgreementInput, "customerId" | "source">;
+  unmatchedAddresses?: string[]; // addresses in the document that match no property
+};
+
+function importChecks(input: ImportAgreementInput): Check[] {
+  const isNew = !input.existingCustomerId;
+  const terms: AgreementInput = { ...input.agreement, customerId: input.existingCustomerId ?? "(new)", source: "imported" };
+  const checks = agreementChecks(terms, { fields: input.customer, isNew });
+  if (isNew && findMatches(input.customer).length) checks.push({ code: "duplicate_customer", level: "warning" });
+  for (const text of input.unmatchedAddresses ?? []) checks.push({ code: "property_unmatched", level: "warning", detail: text });
+  return checks;
+}
+
+/** The checks for an import, for the screen to show before saving (importAgreement enforces the errors). */
+export function checkAgreementImport(input: ImportAgreementInput): Promise<Check[]> {
+  if (knownRecords({ ...input.agreement, customerId: input.existingCustomerId ?? "", source: "imported" }, { newCustomer: !input.existingCustomerId }))
+    return delay([]);
+  return delay(importChecks(input));
+}
+
+export type ImportResult = { customerId: ID; agreementId: ID; created: boolean; filled: (keyof Customer)[] };
+
+/**
+ * Saves what was read from an agreement after the manager checked it: a new customer, or the
+ * existing one with only its empty details filled in (an import never overwrites what is there).
+ * The document's text is not kept; the original file goes to private file storage in the backend.
+ */
+export function importAgreement(input: ImportAgreementInput): Promise<ImportResult> {
+  const terms: AgreementInput = { ...input.agreement, customerId: input.existingCustomerId ?? "", source: "imported" };
+  const unknown = knownRecords(terms, { newCustomer: !input.existingCustomerId });
+  if (unknown) return Promise.reject(new Error(unknown));
+  const checks = importChecks(input);
+  if (hasErrors(checks)) return Promise.reject(new CheckError(checks));
+  // Saved as the system stores them: E.164 phone, digits-only ID, lower-case email, trimmed text.
+  const d: CustomerDetails = {
+    ...input.customer,
+    name: input.customer.name.trim().replace(/\s+/g, " "),
+    phone: normalizePhone(input.customer.phone)!,
+    taxId: input.customer.taxId?.replace(/[\s-]/g, "") || undefined,
+    email: input.customer.email?.trim().toLowerCase() || undefined,
+    billingAddress: input.customer.billingAddress?.trim() || undefined,
+  };
+
+  let customer: Customer;
+  const filled: (keyof Customer)[] = [];
+  if (input.existingCustomerId) {
+    customer = find(db.customers, input.existingCustomerId);
+    for (const key of ["taxId", "email", "billingAddress"] as const) {
+      if (!customer[key] && d[key]) {
+        customer[key] = d[key];
+        filled.push(key);
+      }
+    }
+  } else {
+    customer = {
+      id: `c${db.customers.length + 1}-${Date.now()}`,
+      number: Math.max(0, ...db.customers.map((c) => c.number)) + 1,
+      kind: d.kind,
+      name: d.name.trim(),
+      taxId: d.taxId || undefined,
+      phone: d.phone,
+      email: d.email || undefined,
+      billingAddress: d.billingAddress || undefined,
+      preferredLanguage: d.preferredLanguage,
+      preferredChannel: d.email ? "email" : "whatsapp",
+      status: "active",
+    };
+    db.customers.push(customer);
+  }
+  const agreement: AgreementInput = { ...terms, customerId: customer.id };
+  const saved = addAgreement(agreement);
+  return delay({ customerId: customer.id, agreementId: saved.id, created: !input.existingCustomerId, filled });
 }
 
 // ---------- payment requests and automatic reminders ----------

@@ -25,10 +25,12 @@ const I18nContext = createContext<Ctx | null>(null);
 export function formatters(locale: Locale) {
   const tag = locale === "he" ? "he-IL" : "en-IL";
   const money = new Intl.NumberFormat(tag, { style: "currency", currency: "ILS", maximumFractionDigits: 0 });
+  // Agorot are shown only when there are some, so a document never rounds an agreed amount.
+  const moneyExact = new Intl.NumberFormat(tag, { style: "currency", currency: "ILS", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const dateF = new Intl.DateTimeFormat(tag, { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Jerusalem" });
   const dateTimeF = new Intl.DateTimeFormat(tag, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Jerusalem" });
   return {
-    money: (minor: number) => money.format(minor / 100),
+    money: (minor: number) => (minor % 100 ? moneyExact : money).format(minor / 100),
     date: (iso: string) => dateF.format(new Date(iso)),
     dateTime: (iso: string) => dateTimeF.format(new Date(iso)),
     daysSince: (iso: string) => Math.max(0, Math.floor((Date.now() - Date.parse(iso)) / 86_400_000)),

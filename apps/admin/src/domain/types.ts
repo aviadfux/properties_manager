@@ -40,6 +40,8 @@ export type Property = {
   floor?: number;
   areaSqm?: number;
   rooms?: number;
+  block?: string; // גוש — land registry block; with the parcel, identifies the property in documents
+  parcel?: string; // חלקה
   notes?: string;
 };
 
@@ -171,9 +173,39 @@ export type Professional = {
   notes?: string;
 };
 
+// --- Management agreements ---
+
+/** Fixed monthly amount, a percentage of the rent, or a percentage with a monthly minimum ("whichever is higher"). */
+export type FeeModel = "fixed" | "percent_of_rent" | "percent_with_minimum";
+export const FEE_MODELS: FeeModel[] = ["percent_with_minimum", "percent_of_rent", "fixed"];
+
+/**
+ * The contract between the company and an owner (spec §2). Created here and exported as a document,
+ * or imported from an existing document. Billing-plan versions (spec §4) come with Phase 2.
+ */
+export type ManagementAgreement = {
+  id: ID;
+  number: number;
+  customerId: ID;
+  propertyIds: ID[];
+  startDate: ISODate;
+  endDate?: ISODate; // empty: until either side ends it
+  feeModel: FeeModel;
+  feeMinor?: number; // the monthly amount (fixed), or the monthly minimum (percent_with_minimum)
+  feePercent?: number; // percentage of the rent
+  plusVat?: boolean; // the fee is before VAT
+  billingFrequency?: "monthly" | "quarterly"; // when the fee is charged; monthly when empty
+  approvalThresholdMinor?: number; // work above this cost needs the owner's consent (spec §7)
+  language: Language;
+  source: "generated" | "imported";
+  fileName?: string; // the imported document; the file itself goes to private file storage, never into the database
+  signedAt?: ISODate; // empty while it is a draft
+  createdAt: ISODateTime;
+};
+
 // --- Form templates ---
 
-export type FormContext = "lease" | "property" | "customer" | "tenant" | "issue" | "payment_request";
+export type FormContext = "lease" | "property" | "customer" | "tenant" | "issue" | "payment_request" | "agreement";
 
 export type FormTemplate = {
   id: ID;
@@ -181,6 +213,9 @@ export type FormTemplate = {
   context: FormContext; // which record the form is generated from
   kind: "document" | "message"; // a printable form, or the text of a WhatsApp / email message
   body: Partial<Record<Language, string>>; // text with {{placeholders}} per language; see src/data/templates.ts
+  // The agreement document itself: it must state every detail of the record, and every generated
+  // copy is read back and compared with the record (src/data/checks.ts). Not for a quote or a power of attorney.
+  importable?: boolean;
   updatedAt: ISODateTime;
 };
 

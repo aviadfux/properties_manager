@@ -2,7 +2,7 @@
 
 **Property Management & Investments — General Edition**
 
-Version 1.6 | November 5, 2026 | Specification and Phased Rollout
+Version 1.7 | November 6, 2026 | Specification and Phased Rollout
 
 ## 1. Purpose and Scope of the System
 
@@ -104,6 +104,8 @@ The top of the screen shows period, assigned user, property type and building fi
 The admin is organized around four separate entities: the **customer** (the property owner who contracts with the company), the **property**, the **tenant** and the **issue**. A property belongs to a customer through ownership periods; a tenant is linked to a property through a lease, and through it to the customer — a customer's tenants are derived, never stored twice. Every issue is linked to its property, to the customer who owned it when the issue was opened, to the person who reported it and to the responsible employee.
 
 The manager can move between views of the same data: the customers list leads to a customer card with tabs for properties, tenants, open and closed issues, charges, documents and activity; the issues list, filtered by status, urgency, customer or property, leads to an issue card that links back to its customer and property. Properties and tenants have their own lists and cards, linked the same way.
+
+Management agreements have their own list and card, and a tab on the customer card. An agreement can be created from the customer's details and exported as a printable document, PDF or Word file from an agreement template; the same terms also produce a power of attorney for the owners to sign and a price quote for a prospective client. The fee may be a fixed amount, a percentage of the rent, or a percentage with a monthly minimum (whichever is higher), with or without VAT, billed monthly or quarterly. Properties are identified by address and by land registry block and parcel. In the other direction, an existing agreement (Word or text) can be imported to create the customer: the system reads the owner's details and the agreement's terms on the user's computer, without sending the document to an outside service, shows where each value was found, warns about a possible duplicate customer (same ID, email or phone) and never overwrites details already in the system. The user checks every value before saving; the system then checks the details (phone, email and ID formats, real dates in order, a fee within range) and refuses a duplicate agreement, and warns about a property already under another agreement, recorded as another owner's, or not found. Every generated agreement is read back and compared with its record, and a Word file is verified before it is saved. The original file is kept in private file storage.
 
 ### Property Card and Building Card
 
@@ -284,6 +286,8 @@ Every conversation, including media, is stored in the contact's communication hi
 
 The system complies with the applicable privacy law (e.g., Israel's Privacy Protection Law and its Data Security Regulations, or GDPR where relevant): a database definition document, retention periods per data type, handling of access, correction and deletion requests, data-processing agreements with vendors and a breach-notification procedure.
 
+Personal data is classified (identifiers, contact details, financial details and free text) and collected only as needed. ID and company numbers are masked on screen until the user reveals them, and the reveal is logged. Documents are read inside the system, never by an outside service. Real customer documents and data never enter the code repository, test data or development tools; test data is fictitious.
+
 ## 9. Infrastructure, Integrations and Quality Requirements
 
 ### Recommended Technical Architecture
@@ -300,11 +304,13 @@ Card processing, SMS messaging, automatic bank reconciliation and e-signature ar
 
 ### AI Assistance
 
-Optional AI features: classifying and prioritizing service requests from free text and photos; extracting data from vendor invoices and payment proofs for human confirmation; drafting replies and reminders. AI output is always a suggestion: it never approves an expense, verifies a payment or issues a document.
+Optional AI features: classifying and prioritizing service requests from free text and photos; extracting data from vendor invoices and payment proofs for human confirmation; drafting replies and reminders; reading agreements whose layout the built-in rules do not recognize. AI output is always a suggestion: it never approves an expense, verifies a payment or issues a document.
+
+Personal data is never sent to an AI service. Before any text is sent, names, ID numbers, phone numbers, email and postal addresses, and bank and card details are replaced with tokens; the answer is mapped back to the real values inside the system. Detection combines fixed rules, the details already known for the record, and a local entity-recognition model that runs inside the system without internet access; if it is unavailable nothing is sent, and the outgoing text is checked once more before every call. Only providers that do not train on the data and do not retain it are used, under a data-processing agreement, and every call is logged without its content.
 
 ### Reliability and Security
 
-Strong authentication (MFA) for internal users, immediate lock-out of removed users, encryption in transit and at rest, secrets managed outside the code, time-limited file links, file scanning and login rate-limiting. Full credit-card details are never stored in the system; payment is handled by a dedicated provider if one is chosen.
+Strong authentication (MFA) for internal users, immediate lock-out of removed users, encryption in transit and at rest, secrets managed outside the code, time-limited file links, file scanning and login rate-limiting. Full credit-card details are never stored in the system; payment is handled by a dedicated provider if one is chosen. The web application loads code only from the system itself (content security policy). Every change to the code is checked for known vulnerabilities in its libraries and for passwords or keys before it is merged.
 
 Re-runs and duplicate messages never duplicate charges or documents. Cross-system operations get a stable idempotency key, a retry queue and an exceptions queue. A daily reconciliation process matches receipts with documents and charges. A failure in an external service is never recorded as a success.
 
@@ -341,6 +347,8 @@ A full export of all data and files in open formats is available to the organiza
 19. A WhatsApp message describing a safety incident triggers an immediate alert to the responsible user.
 20. The opt-out keyword stops non-essential WhatsApp messages to that contact.
 21. The public website passes an automated accessibility check (WCAG 2.0 AA) in Hebrew and English, and the contact form reaches the company with the visitor's details.
+22. An agreement exported by the system and imported again yields the same owner details and terms; importing an existing customer's agreement does not create a duplicate customer or overwrite their details.
+23. Text sent to an AI service contains no customer name, ID number, phone number, email address or bank detail.
 
 ### Recommended Development Order
 

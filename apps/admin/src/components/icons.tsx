@@ -20,6 +20,10 @@ const paths = {
   whatsapp: "M3.5 20.5 5 16a8.5 8.5 0 1 1 3 3zM9.5 8c0 3.2 2.8 6.3 6.5 6.5l.9-1.6-2.1-1.1-.9.8c-1-.5-1.9-1.4-2.4-2.4l.8-.9L11.2 7.2z",
   mail: "M3 6h18v12H3zm0 0 9 7 9-7",
   pin: "M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21m0-9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5",
+  agreement: "M14 3H6v18h6M14 3v4h4v3M9 9h4m-4 4h3m2 8 .8-2.8L20 13l2 2-5.2 5.2z",
+  upload: "M12 15V4m0 0L8 8m4-4 4 4M4 15v5h16v-5",
+  download: "M12 4v11m0 0-4-4m4 4 4-4M4 15v5h16v-5",
+  shield: "M12 21s-8-3.5-8-10V5l8-3 8 3v6c0 6.5-8 10-8 10m-3-10 2 2 4-4",
 } as const;
 
 export type IconName = keyof typeof paths;

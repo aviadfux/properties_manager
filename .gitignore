@@ -23,3 +23,13 @@ coverage/
 
 # Private, company-specific material (never committed)
 private/
+
+# Real documents (agreements, IDs, bank statements) hold personal data and never go into this
+# public repository. Redacted copies made with `npm run redact` are also kept out by default.
+*.docx
+*.doc
+*.pdf
+*.xlsx
+*.xls
+*.redacted.txt
+docs_examples/
