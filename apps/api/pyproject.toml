@@ -1,0 +1,44 @@
+[project]
+name = "properties-manager-api"
+version = "0.1.0"
+description = "Property management system: Python API (FastAPI + PostgreSQL)"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic==1.20.1",
+    "argon2-cffi==25.1.0",
+    "cryptography==50.0.2",
+    "email-validator==2.4.0",
+    "fastapi==0.163.1",
+    "psycopg[binary]==3.3.9",
+    "pydantic-settings==2.16.3",
+    "pyotp==2.11.2",
+    "sqlalchemy==2.1.8",
+    "uvicorn[standard]==0.54.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx==0.28.1",
+    "pip-audit==2.10.1",
+    "pytest==9.2.0",
+    "ruff==0.17.5",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 150
+target-version = "py313"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "S"]
+ignore = ["B008"]  # FastAPI's Depends() in argument defaults
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "S105", "S106", "S608"]  # asserts, invented passwords, fixed SQL in tests
+"migrations/*" = ["S608"]  # table names come from a fixed list, not from users

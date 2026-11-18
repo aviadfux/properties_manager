@@ -13,6 +13,7 @@ Section references (§) below point to the spec.
 | Money | Integer minor units (agorot / cents), never floats; currency per organization (§9) |
 | Financial records | Append-only: corrections are new entries, never edits or deletes (§5) |
 | Isolation | Every table has `organization_id`; enforced in the database with row-level security, not only in code (§1, §8) |
+| How it is used | In the browser, on a phone and on a computer: one responsive web app at one address, installable to the phone's home screen (PWA). No app-store apps, and no cloud platform to operate (no Azure, no Kubernetes): one small managed service and a managed PostgreSQL |
 
 ## 2. Proposed stack
 
@@ -82,6 +83,8 @@ Added after the first review: professionals (trades, service regions, where they
 *Exit*: the user clicks through all views and approves the screens and the data model.
 
 ### Phase 0 — Foundations (≈1–2 weeks)
+*Status*: `apps/api` exists — tables for organizations, users, customers, properties, ownerships, tenants and leases; row-level security; sign-in with 2FA, sessions, rate limiting; roles; audit log; encrypted ID numbers; tests and a CI job. Still open: connecting the manager app (sign-in screen, `src/data/api.ts`), phone layout pass and home-screen install, file storage, error monitoring, the staging deployment, the Python port of the redaction rules.
+
 Repo, CI, environments (local / staging / production), auth with 2FA, organizations and roles, RLS, i18n + RTL shell, audit log, file storage, error monitoring, deployment pipeline. Security baseline from [SECURITY.md](SECURITY.md): encryption of identifiers at rest, security headers, logs without personal data, the Python port of the redaction rules.
 *Exit*: a user logs in with 2FA in Hebrew or English; the cross-organization isolation test (§10 #15) passes.
 

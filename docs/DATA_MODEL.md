@@ -11,7 +11,7 @@ The shared contract between the admin screens (`apps/admin`, TypeScript types) a
 - **Money** is an integer in minor units (`amount_minor`, agorot) plus a currency code. **Dates** are calendar dates; **timestamps** are UTC and displayed in the organization's time zone.
 - **IDs** are UUIDs. Records people talk about also get a short human number per organization (e.g., issue `#1042`).
 
-Common fields on every entity: `id`, `organization_id`, `created_at`, `updated_at`.
+Common fields on every entity: `id`, `organization_id`, `created_at`, `updated_at`. A link between two entities includes the organization (`organization_id` + `id`), so a row can never point to another organization's row.
 
 ## Diagram
 
@@ -49,7 +49,7 @@ The property owner who contracts with the company for management (spec glossary:
 | `number` | int | Human number per organization |
 | `kind` | enum `individual` \| `company` | |
 | `name` | str | Full name or company name |
-| `tax_id` | str? | ID number / company number. **Identifier**: encrypted at rest, masked on screen ([SECURITY.md](SECURITY.md)) |
+| `tax_id` | str? | ID number / company number. **Identifier**: encrypted at rest, masked on screen ([SECURITY.md](SECURITY.md)). A keyed fingerprint (`tax_id_index`) is stored next to it, to find duplicates without decrypting |
 | `phone` | str | E.164 format |
 | `email` | str? | |
 | `billing_address` | str? | |
@@ -123,7 +123,7 @@ Links a tenant to a property over time.
 | `end_date` | date | |
 | `monthly_rent_minor` | int | Used for percentage fees (spec §4) |
 | `currency` | str | `ILS` |
-| `status` | enum `active` \| `ended` \| `upcoming` | Derived from dates, stored for queries |
+| `status` | enum `active` \| `ended` \| `upcoming` | Derived from the dates when read; not stored, so it cannot go stale |
 
 ### Issue
 A service request about a property (spec §7).
@@ -261,8 +261,8 @@ An employee using the admin app.
 |---|---|---|
 | `name` | str | |
 | `email` | str | Login |
-| `role` | enum `managing_director` \| `property_manager` \| `operations` \| `finance` \| `accountant` | Spec §8 |
-| `active` | bool | |
+| `role` | enum `managing_director` \| `property_manager` \| `operations` \| `finance` \| `accountant` | Spec §8. Stored on the **membership** (user × organization), so one person can work in several organizations |
+| `active` | bool | On the user (locked out everywhere) and on the membership (removed from one organization) |
 
 ## Coming in later phases
 

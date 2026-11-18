@@ -11,6 +11,7 @@ A management system for property management companies: clients and leads, proper
 | `docs/BUILD_PLAN.md` | Stack, architecture and phased build plan |
 | `apps/web/` | Public website (Next.js, static, Hebrew + English) |
 | `apps/admin/` | Manager app (React + Vite), currently on sample data |
+| `apps/api/` | Python API (FastAPI + PostgreSQL): sign-in with 2FA, organizations, customers, properties |
 | `docs/DATA_MODEL.md` | Entities and relationships shared by the screens and the backend |
 | `docs/SECURITY.md` | Personal data, AI use, and the security rules for the code and the team |
 | `.claude/` | Claude Code settings for this repo: the `data-security` skill, and a block on reading real documents |
@@ -43,6 +44,40 @@ npm test        # all tests once (Vitest)
 npm run test:watch  # re-runs the affected tests on every save
 npm run redact -- path/to/file.docx  # a copy without personal details, safe to share
 ```
+
+## API (`apps/api`)
+
+Python (FastAPI, SQLAlchemy, Alembic) on PostgreSQL. The manager app is not connected to it yet.
+
+Needs [uv](https://docs.astral.sh/uv/) and a local PostgreSQL — the simplest is Docker Desktop:
+
+```bash
+cd apps/api
+docker compose up -d                      # PostgreSQL on this computer only
+uv sync                                   # Python and the libraries, into .venv/
+uv run python -m app.cli init-env         # .env with fresh keys (never committed)
+uv run python -m app.cli setup            # creates / updates the tables
+uv run python -m app.cli create-org "My Company"                 # prints the organization id
+uv run python -m app.cli create-user --org <id> --email me@example.com --name "My Name"
+uv run uvicorn app.main:app --reload      # http://localhost:8000/api/docs
+uv run pytest                             # tests, against a separate pm_test database
+```
+
+Without Docker: install PostgreSQL 17, create a superuser `pm_owner` and a database `pm_dev`, and set the two URLs in `.env`.
+
+| Path | Contents |
+|---|---|
+| `app/db/models.py` | The tables ([docs/DATA_MODEL.md](docs/DATA_MODEL.md)) |
+| `app/db/rls.py` | Row-level security: the database keeps organizations apart, whatever the code does |
+| `app/auth/` | Sign-in: password, one-time code (2FA), session cookie, rate limiting |
+| `app/permissions.py` | What each role may do; checked on the server for every call |
+| `app/routers/` | The endpoints (customers, properties so far) |
+| `app/security/` | Encryption of ID numbers, password hashing |
+| `app/cli.py` | Administration: set up the database, add an organization or a user, reset a password or 2FA |
+| `migrations/` | Database changes, in order (Alembic) |
+| `tests/` | `test_isolation.py` (spec §10 #15), `test_auth.py`, `test_customers.py` |
+
+The API connects to the database as `pm_app`, a role that owns nothing and cannot bypass row-level security; migrations and `app.cli` connect as the owner. Adding a table: add the model, write a migration that also calls `rls.enable_rls_sql` and `rls.grants_sql` for it — `test_every_table_with_customer_data_is_protected` fails if that is forgotten.
 
 Security and personal data: read [docs/SECURITY.md](docs/SECURITY.md) before working with real documents or adding an AI feature.
 

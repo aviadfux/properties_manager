@@ -50,6 +50,35 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  api:
+    name: API — lint, dependency audit, tests against PostgreSQL
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    services:
+      # A throwaway database for the tests; the same local-only password as apps/api/compose.yaml.
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: pm_owner
+          POSTGRES_PASSWORD: pm_local_dev
+          POSTGRES_DB: pm_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U pm_owner -d pm_test"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      # Known vulnerabilities in the libraries the API runs with (not the test tools).
+      - run: uv export --locked --no-dev --format requirements-txt -o /tmp/requirements.txt
+      - run: uv run pip-audit -r /tmp/requirements.txt
+      - run: uv run pytest
+
   secrets:
     name: No passwords or keys in the code
     runs-on: ubuntu-latest
